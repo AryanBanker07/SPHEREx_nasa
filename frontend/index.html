@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NASA SPHEREx Time-Domain Sky Explorer | Planet X & Brown Dwarf Discovery</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Chart.js for 102-band spectra -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- CDS Aladin Lite v3 API for Multi-Mission Sky Integration -->
+  <script src="https://aladin.cds.unistra.fr/AladinLite/api/v3/latest/aladin.js" charset="utf-8"></script>
+</head>
+<body>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand-section">
+        <div class="mission-logo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
+            <path d="M2 12h20"/>
+          </svg>
+        </div>
+        <div class="brand-titles">
+          <h1>SPHEREx Time-Domain Sky Explorer</h1>
+          <p>NASA Space Apps Challenge 2026 • 102-Band Near-Infrared Moving Object & Transient Hunter</p>
+        </div>
+      </div>
+      <div class="mission-badges">
+        <span class="badge badge-nasa">NASA SPHEREx</span>
+        <span class="badge badge-spherex">102 Bands (0.75 - 5.0 µm)</span>
+        <span class="badge badge-status">● Survey Active</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Control & Search Toolbar -->
+  <section class="control-toolbar">
+    <div class="toolbar-container">
+      <!-- Target input -->
+      <div class="search-group">
+        <div class="input-wrapper">
+          <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" id="target-input" placeholder="Enter RA & Dec or Object (e.g. Barnard's Star, WISE 0855, 17:57:48 +04:41:36)..." value="Barnard's Star">
+        </div>
+        <button id="btn-search" class="btn btn-primary">Search</button>
+      </div>
+
+      <!-- Quick Benchmark Presets -->
+      <div class="presets-strip">
+        <span style="font-size:0.75rem; color:var(--text-muted); font-weight:600; margin-right:0.3rem;">BENCHMARKS:</span>
+        <button class="preset-chip active" data-target="Barnard's Star">Barnard's Star (10.4″/yr)</button>
+        <button class="preset-chip" data-target="WISE 0855">WISE 0855 (Ice Y-Dwarf)</button>
+        <button class="preset-chip" data-target="Epsilon Indi B">Epsilon Indi B (Brown Dwarf)</button>
+        <button class="preset-chip" data-target="RW Aurigae">RW Aurigae (UXor Dip)</button>
+        <button class="preset-chip" data-target="R Draconis">R Draconis (Mira Giant)</button>
+        <button class="preset-chip" data-target="Planet 9 Candidate">Planet X Candidate</button>
+      </div>
+
+      <!-- Filters: FOV and Detector Array -->
+      <div style="display:flex; align-items:center; gap:0.5rem; margin-left:auto;">
+        <div style="display:flex; align-items:center; gap:0.35rem; font-size:0.78rem; color:var(--text-secondary);">
+          <label for="fov-select">FOV:</label>
+          <select id="fov-select" class="btn" style="padding:0.4rem 0.6rem; font-size:0.75rem;">
+            <option value="2">2.0′ (Zoomed In)</option>
+            <option value="5">5.0′</option>
+            <option value="8" selected>8.0′ (Optimal)</option>
+            <option value="15">15.0′</option>
+            <option value="30">30.0′ (Wide Field)</option>
+          </select>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:0.35rem; font-size:0.78rem; color:var(--text-secondary);">
+          <label for="array-select">Array:</label>
+          <select id="array-select" class="btn" style="padding:0.4rem 0.6rem; font-size:0.75rem;">
+            <option value="all" selected>All 102 Bands (Coadded)</option>
+            <option value="1">Array 1 (0.75 - 1.11 µm)</option>
+            <option value="2">Array 2 (1.11 - 1.64 µm)</option>
+            <option value="3">Array 3 (1.64 - 2.42 µm)</option>
+            <option value="4">Array 4 (2.42 - 3.82 µm: H2O Ice)</option>
+            <option value="5">Array 5 (3.82 - 4.42 µm: CO2)</option>
+            <option value="6">Array 6 (4.42 - 5.00 µm: 5µm Window)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Grid Workspace -->
+  <main class="app-main">
+    <!-- Left Column: Primary Image Canvas / Aladin View -->
+    <div class="viewer-card">
+      <div class="card-header">
+        <div class="card-title-group">
+          <span id="display-target-name" class="card-title">Barnard's Star</span>
+          <span style="font-size:0.75rem; color:var(--text-muted); font-family:var(--font-mono);">• 6.2″/pixel</span>
+        </div>
+        <div class="view-tabs">
+          <button class="view-tab active" data-view="blink">Blink Comparator</button>
+          <button class="view-tab" data-view="aladin">CDS Aladin Lite (WISE / Gaia)</button>
+        </div>
+      </div>
+
+      <!-- Viewport area -->
+      <div class="viewport-container">
+        <!-- Canvas for Blinker -->
+        <canvas id="blink-canvas"></canvas>
+        <!-- Aladin Lite Container -->
+        <div id="aladin-container"></div>
+
+        <!-- Floating HUD elements -->
+        <div class="viewport-hud-top">
+          <div id="hud-epoch-label" class="hud-pill">SPHEREx Survey 1 (May 2025)</div>
+          <div id="hud-coords" class="hud-pill">RA 269.4521° | Dec +4.6933°</div>
+        </div>
+        <div id="hud-cursor-coords" class="hud-cursor-info">Pixel: (0, 0) | Click to Extract 102-Band SED</div>
+      </div>
+
+      <!-- Playback and Enhancement Controls -->
+      <div class="playback-bar">
+        <!-- Multi-epoch timeline stepper -->
+        <div class="timeline-row">
+          <div class="epoch-stepper">
+            <div class="epoch-node active" title="May 2025">Survey 1 (2025.3)</div>
+            <div class="epoch-node" title="Nov 2025">Survey 2 (2025.8)</div>
+            <div class="epoch-node" title="May 2026">Survey 3 (2026.3)</div>
+            <div class="epoch-node" title="Nov 2026">Survey 4 (2026.8)</div>
+            <div class="epoch-node" title="15-Year Historical Baseline">WISE Baseline (2010)</div>
+          </div>
+        </div>
+
+        <div class="controls-row">
+          <div class="button-cluster">
+            <button id="btn-play" class="btn btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
+              </svg>
+              Pause
+            </button>
+            <button id="btn-prev" class="btn" title="Previous Frame">◀ Step</button>
+            <button id="btn-next" class="btn" title="Next Frame">Step ▶</button>
+            <div class="speed-control">
+              <span>Speed:</span>
+              <input type="range" id="fps-slider" min="0.5" max="6.0" step="0.5" value="2.0">
+              <span id="fps-label">2.0 fps</span>
+            </div>
+          </div>
+
+          <!-- Enhancement modes -->
+          <div class="mode-selector">
+            <button class="mode-btn active" data-mode="normal" title="Standard Near-Infrared">Normal</button>
+            <button class="mode-btn" data-mode="inverted" title="Inverted Greyscale (Optimal for spotting moving points)">Inverted</button>
+            <button class="mode-btn" data-mode="difference" title="Epoch B - Epoch A Subtraction (Reveals Dipoles)">Difference</button>
+            <button class="mode-btn" data-mode="coadd" title="Stacked Coaddition (Boosts SNR)">Coadd</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Scientific & Discovery Analysis Panel -->
+    <div class="analysis-panel">
+      <!-- 102-Band SED Spectrum Card -->
+      <div class="panel-card">
+        <div class="panel-header">
+          <h2>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+            102-Band Spectrophotometry (SED)
+          </h2>
+          <span id="meta-classification" class="badge badge-spherex">Loading...</span>
+        </div>
+
+        <!-- Spectrum Canvas/Chart -->
+        <div class="chart-container">
+          <canvas id="sed-chart"></canvas>
+        </div>
+
+        <!-- Diagnostic molecular flags -->
+        <p style="font-size:0.72rem; color:var(--text-muted); margin-bottom:0.25rem;">KEY SPECTRAL ICE & GAS FEATURES:</p>
+        <div id="molecular-pills-container" class="molecular-flags">
+          <div class="mol-pill ice"><span>●</span> <strong>H2O Ice</strong> (3.05µm)</div>
+          <div class="mol-pill gas"><span>●</span> <strong>CO2 Ice/Gas</strong> (4.27µm)</div>
+          <div class="mol-pill gas"><span>●</span> <strong>CO Gas</strong> (4.67µm)</div>
+          <div class="mol-pill gas"><span>●</span> <strong>CH4 Methane</strong> (1.67 & 3.3µm)</div>
+        </div>
+      </div>
+
+      <!-- Candidate Discoveries Card -->
+      <div class="panel-card">
+        <div class="panel-header">
+          <h2>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            Discovery & Dipole Analyzer
+          </h2>
+          <button id="btn-export-csv" class="btn" style="padding:0.25rem 0.5rem; font-size:0.7rem;">Export CSV</button>
+        </div>
+
+        <div id="candidates-list">
+          <!-- Filled dynamically by DifferenceEngine -->
+        </div>
+
+        <!-- Metadata Grid -->
+        <div class="meta-grid">
+          <div class="meta-box">
+            <span>Spectral Coverage</span>
+            <strong id="meta-bands">102 Bands (0.75 - 5.0 µm)</strong>
+          </div>
+          <div class="meta-box">
+            <span>Signal-To-Noise Gain</span>
+            <strong id="meta-snr">+2.0x Coadd Gain</strong>
+          </div>
+          <div class="meta-box">
+            <span>Detector Resolution</span>
+            <strong>6.2″ per pixel</strong>
+          </div>
+          <div class="meta-box">
+            <span>Survey Cadence</span>
+            <strong>6 Months (All-Sky)</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action & Sharing Bar -->
+      <div class="panel-card" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.5rem;">
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <button id="btn-export-gif" class="btn btn-accent">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Export Blinking GIF
+          </button>
+          <button id="btn-share" class="btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+            </svg>
+            Share Deep Link
+          </button>
+        </div>
+        <span style="font-size:0.72rem; color:var(--text-muted);">NASA Space Apps 2026 Citizen Science Platform</span>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <p>
+      SPHEREx Time-Domain Sky Explorer • Developed for the NASA Space Apps Challenge: 
+      <a href="https://www.spaceappschallenge.org/2026/challenges/planet-x-and-spherex/" target="_blank">Planet X and SPHEREx</a> • Powered by NASA SPHEREx, Astropy & CDS Aladin
+    </p>
+  </footer>
+
+  <!-- Application Scripts -->
+  <script src="js/gif_encoder.js"></script>
+  <script src="js/blinker.js"></script>
+  <script src="js/sed_chart.js"></script>
+  <script src="js/aladin_viewer.js"></script>
+  <script src="js/export_tools.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
+
