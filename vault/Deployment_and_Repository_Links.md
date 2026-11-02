@@ -1,6 +1,7 @@
-# SPHEREx Sky Explorer: Deployment & Repository Links
+# SPHEREx Sky Explorer: Zooniverse Redesign, Deployment & Repository Links
 
 **Challenge:** NASA Space Apps Challenge 2026 — Planet X and SPHEREx  
+**Design System:** NASA Citizen Science × Zooniverse Classifier (*Overlap Zoo* / *Backyard Worlds*)  
 **Last Updated:** 2026-11-02  
 
 ---
@@ -9,23 +10,20 @@
 
 | Destination | URL / Link | Description |
 | :--- | :--- | :--- |
-| **GitHub Repository** | [https://github.com/AryanBanker07/SPHEREx_nasa](https://github.com/AryanBanker07/SPHEREx_nasa) | Full source code with backend, frontend, test suites, and documentation. |
-| **Production Live Site** | [https://frontend-three-teal-18.vercel.app](https://frontend-three-teal-18.vercel.app) | Publicly accessible interactive web application deployed on Vercel. Includes full client-side simulation engine. |
-| **Local Development Server** | `http://127.0.0.1:8000` | Full-stack server running FastAPI + Astropy scientific engine locally. |
+| **Local Live Server** | [http://127.0.0.1:8000](http://127.0.0.1:8000) | Full-stack FastAPI + Astropy engine running locally on port 8000. |
+| **GitHub Repository** | [https://github.com/AryanBanker07/SPHEREx_nasa](https://github.com/AryanBanker07/SPHEREx_nasa) | Full source code (backend, Zooniverse classifier frontend, test suites, Obsidian vault). |
+| **Vercel Production Site** | [https://frontend-three-teal-18.vercel.app](https://frontend-three-teal-18.vercel.app) | Cloud-hosted interactive web workstation with complete Browser Physics Engine & live CDS Sesame lookup. |
 
 ---
 
-## 🚀 How to Run Locally
+## 🎨 Zooniverse Citizen Science UI Highlights
 
-```bash
-cd "c:\Users\banke\OneDrive\Desktop\nasa_spaceapps\Planet X and SPHEREx"
-python run.py
-```
-This automatically boots Uvicorn on `http://127.0.0.1:8000` and opens the web application in your default browser.
-
----
-
-## 🛠️ Deployment Configuration
-
-- **Vercel Static & Client-Side Engine:** The frontend incorporates an in-browser scientific simulation generator. If deployed to any CDN or static hosting platform without the Python backend, all 5 benchmark targets (Barnard's Star, Epsilon Indi B, WISE 0855, RW Aurigae, R Draconis) and custom coordinate queries simulate the multi-epoch blinking, difference subtraction, dipole detection, and 102-band spectrophotometric SED extraction with zero external server dependencies.
-- **FastAPI / Astropy Server:** When connected to the Python backend, it connects live to `astropy.coordinates.SkyCoord`, WCS headers, and automated matrix math.
+1. **Authentic Zooniverse Classifier Architecture:**
+   - Uses official Zooniverse **Karla** typography paired with **Barlow Condensed** mission headers and **IBM Plex Mono** astrometric telemetry.
+   - Signature `#00979d` Zooniverse Teal, `#005d69` Deep Teal, and `#f0b200` NASA Gold palette with persistent **Dark Observatory / Light Lab Theme Toggle**.
+   - **Project Sub-Nav:** `CLASSIFY`, `ABOUT`, `TALK` (with live classification counter), `COLLECT` (Favorites & Saved Collections), and `RECENTS`.
+   - **Right-Edge Pull-Out `FIELD GUIDE` Drawer:** Visual reference cards with one-click benchmark target loaders.
+2. **Universal Hover Instructions (`tooltip.js`):**
+   - Hovering over **every icon, toolbar button, epoch dot, wavelength pill, dropdown, and task choice** displays an instant instructional HUD tooltip with keyboard shortcuts and scientific explanations.
+3. **12-Tool Vertical Subject Manipulation Toolbar:**
+   - Spectrum Pointer (`S`), Candidate Marker (`M`), Pan (`P`), Zoom In/Out/Reset (`+`, `-`, `0`), Negative Invert (`I`), 3-Band False-Color RGB (`R`), Epoch Subtraction Difference (`D` with selectable Epoch A & B pairs), SNR Coadd Stack (`C`), Histogram Brightness/Contrast Stretch (`B`), WCS Coordinate Grid (`G`), Gaia DR3 Proper Motion Vectors, and SPHEREx Level-2 Contamination Flags (`F`).

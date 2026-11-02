@@ -1,6 +1,6 @@
 /**
- * CDS Aladin Lite v3 Sky Integration Module.
- * Provides multi-mission Virtual Observatory (VO) sky views (AllWISE, 2MASS, Gaia DR3).
+ * CDS Aladin Lite v3 Multi-Mission Sky Survey Controller.
+ * Overlays real archival sky surveys (AllWISE, 2MASS, DSS2) and Gaia DR3 astrometry.
  */
 
 class AladinViewer {
@@ -9,15 +9,15 @@ class AladinViewer {
     this.aladin = null;
     this.isInitialized = false;
     this.currentSurvey = 'P/allWISE/color';
+    this.gaiaCatalog = null;
   }
 
-  init(ra, dec, fovDeg = 0.15) {
-    if (!window.A) {
-      console.warn('Aladin Lite v3 script not loaded or offline.');
-      return;
-    }
-
+  async init(ra, dec, fovDeg = 0.14) {
+    if (!window.A) return;
     try {
+      if (window.A.init) {
+        await window.A.init;
+      }
       this.aladin = window.A.aladin(`#${this.containerId}`, {
         survey: this.currentSurvey,
         fov: fovDeg,
@@ -25,25 +25,25 @@ class AladinViewer {
         showReticle: true,
         showLayersControl: true,
         showGotoControl: false,
-        showFullscreenControl: false
+        showFullscreenControl: false,
+        cooFrame: 'ICRSd'
       });
 
-      // Overlay Gaia DR3 Catalog
-      this.gaiaLayer = window.A.catalogHiPS('https://axel.u-strasbg.fr/HiPSCatService/I/355/gaiadr3', {
-        onClick: 'showPopup',
-        name: 'Gaia DR3 (Astrometry & Proper Motion)'
+      this.gaiaCatalog = window.A.catalogHiPS('https://axel.u-strasbg.fr/HiPSCatService/I/355/gaiadr3', {
+        onClick: 'showTable',
+        name: 'Gaia DR3 Astrometry',
+        color: '#00e1ee'
       });
-      this.aladin.addCatalog(this.gaiaLayer);
-
+      this.aladin.addCatalog(this.gaiaCatalog);
       this.isInitialized = true;
-    } catch (e) {
-      console.error('Failed to initialize Aladin Lite v3:', e);
+    } catch (err) {
+      console.warn('Aladin Lite initialization warning:', err);
     }
   }
 
-  goto(ra, dec, fovDeg = 0.15) {
+  async goto(ra, dec, fovDeg = 0.14) {
     if (!this.isInitialized) {
-      this.init(ra, dec, fovDeg);
+      await this.init(ra, dec, fovDeg);
       return;
     }
     if (this.aladin) {
@@ -61,4 +61,3 @@ class AladinViewer {
 }
 
 window.AladinViewer = AladinViewer;
-

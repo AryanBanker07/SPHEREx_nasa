@@ -1,270 +1,895 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NASA SPHEREx Time-Domain Sky Explorer | Planet X & Brown Dwarf Discovery</title>
-  <link rel="stylesheet" href="css/style.css">
+  <title>SPHEREx: Planet X & Moving Worlds — NASA Citizen Science × Zooniverse Classifier</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <!-- Chart.js for 102-band spectra -->
+  <!-- Official Zooniverse Karla UI font + Barlow Condensed Display + IBM Plex Mono Telemetry -->
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Karla:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Chart.js for 102-Band LVF Spectrophotometry -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- CDS Aladin Lite v3 API for Multi-Mission Sky Integration -->
+  <!-- CDS Aladin Lite v3 for Multi-Mission Sky Overlays (WISE, Gaia DR3, 2MASS) -->
   <script src="https://aladin.cds.unistra.fr/AladinLite/api/v3/latest/aladin.js" charset="utf-8"></script>
 </head>
 <body>
 
-  <!-- App Header -->
-  <header class="app-header">
-    <div class="header-container">
-      <div class="brand-section">
-        <div class="mission-logo">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
-            <path d="M2 12h20"/>
-          </svg>
-        </div>
-        <div class="brand-titles">
-          <h1>SPHEREx Time-Domain Sky Explorer</h1>
-          <p>NASA Space Apps Challenge 2026 • 102-Band Near-Infrared Moving Object & Transient Hunter</p>
-        </div>
+  <!-- ========================================================================
+       1. ZOONIVERSE GLOBAL TOP BAR
+       ======================================================================== -->
+  <header class="zoo-global-bar">
+    <div class="zoo-global-left">
+      <a href="#classify" class="zoo-wordmark"
+         data-tip-title="Zooniverse Citizen Science Interface"
+         data-tip-body="Modeled on the official Zooniverse / Overlap Zoo classification platform for volunteer-driven astrophysical discovery.">
+        <!-- Iconic Concentric Zooniverse Emblem -->
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <circle cx="12" cy="12" r="10"/>
+          <circle cx="12" cy="12" r="5.5"/>
+          <circle cx="12" cy="12" r="1.6" fill="currentColor"/>
+        </svg>
+        <span>ZOONIVERSE</span>
+      </a>
+      <span class="nasa-partner-pill"
+            data-tip-title="NASA Space Apps 2026 — Planet X & SPHEREx"
+            data-tip-body="All-sky 102-band near-infrared (0.75–5.0 µm) survey mapping >1 billion celestial objects every 6 months.">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M12 2L15 8.5L22 9.3L17 14L18.3 21L12 17.5L5.7 21L7 14L2 9.3L9 8.5L12 2Z"/>
+        </svg>
+        NASA CITIZEN SCIENCE • SPHEREx
+      </span>
+    </div>
+
+    <div class="zoo-global-right">
+      <div class="global-icon-btn" style="cursor:default;"
+           data-tip-title="Telemetry & Compute Status"
+           data-tip-body="Shows whether cutouts and 102-band spectra are computed via the live Python Astropy API or the self-contained Browser Physics Engine.">
+        <span id="engine-status-dot" class="status-dot"></span>
+        <span id="engine-status-text">Astropy Live API</span>
       </div>
-      <div class="mission-badges">
-        <span class="badge badge-nasa">NASA SPHEREx</span>
-        <span class="badge badge-spherex">102 Bands (0.75 - 5.0 µm)</span>
-        <span class="badge badge-status">● Survey Active</span>
-      </div>
+
+      <button type="button" id="btn-shortcuts-modal" class="global-icon-btn"
+              data-tip-title="Keyboard Shortcuts Guide"
+              data-tip-key="?"
+              data-tip-body="Click to view all rapid observer keyboard shortcuts for blinking, subtracting epochs, zooming, and marking moving objects.">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="5" width="20" height="14" rx="2"/>
+          <line x1="6" y1="9" x2="6" y2="9"/><line x1="10" y1="9" x2="10" y2="9"/>
+          <line x1="14" y1="9" x2="14" y2="9"/><line x1="18" y1="9" x2="18" y2="9"/>
+          <line x1="8" y1="15" x2="16" y2="15"/>
+        </svg>
+        Shortcuts
+      </button>
+
+      <button type="button" id="btn-theme-toggle" class="global-icon-btn"
+              data-tip-title="Switch Classifier Theme"
+              data-tip-body="Toggle between Zooniverse Dark Observatory Mode (reduces eye strain on faint infrared stars) and Crisp Light Lab Mode.">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+        </svg>
+        <span id="theme-btn-label">Light Theme</span>
+      </button>
     </div>
   </header>
 
-  <!-- Control & Search Toolbar -->
-  <section class="control-toolbar">
-    <div class="toolbar-container">
-      <!-- Target input -->
-      <div class="search-group">
-        <div class="input-wrapper">
-          <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"/>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+  <!-- ========================================================================
+       2. PROJECT SUB-HEADER & ZOONIVERSE HORIZONTAL NAV
+       ======================================================================== -->
+  <section class="zoo-project-header">
+    <div class="project-header-inner">
+      <div class="project-identity">
+        <div class="project-avatar"
+             data-tip-title="SPHEREx All-Sky Infrared Survey"
+             data-tip-body="6 HgCdTe Detector Arrays × 17 Linear Variable Filter channels = 102 near-infrared spectral bands covering 0.75 to 5.0 µm.">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2">
+            <circle cx="12" cy="12" r="9"/>
+            <ellipse cx="12" cy="12" rx="9" ry="3.6" transform="rotate(-24 12 12)"/>
+            <circle cx="17" cy="9" r="1.7" fill="#f0b200" stroke="none"/>
           </svg>
-          <input type="text" id="target-input" placeholder="Enter RA & Dec or Object (e.g. Barnard's Star, WISE 0855, 17:57:48 +04:41:36)..." value="Barnard's Star">
         </div>
-        <button id="btn-search" class="btn btn-primary">Search</button>
+        <div class="project-title-block">
+          <h1>SPHEREx: Planet X &amp; Moving Worlds</h1>
+          <p>Multi-Epoch Near-Infrared Blinking, Difference Imaging &amp; 102-Band Spectrophotometry</p>
+        </div>
       </div>
 
-      <!-- Quick Benchmark Presets -->
-      <div class="presets-strip">
-        <span style="font-size:0.75rem; color:var(--text-muted); font-weight:600; margin-right:0.3rem;">BENCHMARKS:</span>
-        <button class="preset-chip active" data-target="Barnard's Star">Barnard's Star (10.4″/yr)</button>
-        <button class="preset-chip" data-target="WISE 0855">WISE 0855 (Ice Y-Dwarf)</button>
-        <button class="preset-chip" data-target="Epsilon Indi B">Epsilon Indi B (Brown Dwarf)</button>
-        <button class="preset-chip" data-target="RW Aurigae">RW Aurigae (UXor Dip)</button>
-        <button class="preset-chip" data-target="R Draconis">R Draconis (Mira Giant)</button>
-        <button class="preset-chip" data-target="Planet 9 Candidate">Planet X Candidate</button>
+      <nav class="zoo-project-nav" aria-label="Project Navigation">
+        <button type="button" class="zoo-nav-tab active" data-nav="classify"
+                data-tip-title="Classify & Explore Sky"
+                data-tip-body="Return to the primary multi-epoch blink comparator and 102-band spectral workstation.">
+          Classify
+        </button>
+        <button type="button" class="zoo-nav-tab" data-nav="about"
+                data-tip-title="About the SPHEREx Science Mission"
+                data-tip-body="Read how NASA's SPHEREx spacecraft maps >1 billion objects across 102 infrared bands to uncover brown dwarfs, comets, and Planet X.">
+          About
+        </button>
+        <button type="button" class="zoo-nav-tab" data-nav="talk"
+                data-tip-title="Talk & Logged Candidate Discoveries"
+                data-tip-body="Inspect all moving objects and variable stars you have classified in this session and export CSV data for science teams.">
+          Talk <span id="talk-count-pill" class="nav-count-pill">0</span>
+        </button>
+        <button type="button" class="zoo-nav-tab" data-nav="collect"
+                data-tip-title="Saved Sky Collections & Favorites"
+                data-tip-body="Browse and reload sky patches you bookmarked with the Favorite (♡) or Collect (⊞) buttons.">
+          Collect <span id="collect-count-pill" class="nav-count-pill">0</span>
+        </button>
+        <button type="button" class="zoo-nav-tab" data-nav="recents"
+                data-tip-title="Recently Viewed Coordinates"
+                data-tip-body="Quickly jump back to any target or RA/Dec coordinate patch you inspected earlier.">
+          Recents
+        </button>
+      </nav>
+    </div>
+  </section>
+
+  <!-- ========================================================================
+       3. TARGET COORDINATE RESOLVER & BENCHMARK COMMAND BAR
+       ======================================================================== -->
+  <section class="target-command-bar" aria-label="Sky Coordinates and Instrument Filters">
+    <div class="target-command-inner">
+      <div class="coord-search-form">
+        <div class="coord-input-box"
+             data-tip-title="Celestial Coordinate & SIMBAD Object Search"
+             data-tip-body="Enter RA & Dec in decimal degrees ('133.795, -7.245'), HMS/DMS ('08h55m10.83s -07d14m42.5s'), or any astronomical object name (e.g. Barnard's Star, WISE 0855, Vega).">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.35" y2="16.35"/>
+          </svg>
+          <input type="text" id="target-input" value="Barnard's Star"
+                 placeholder="RA, Dec or Object (e.g. 08h55m10.83s -07d14m42.5s, WISE 0855)...">
+        </div>
+        <button type="button" id="btn-search" class="zoo-btn-teal"
+                data-tip-title="Point SPHEREx Viewer"
+                data-tip-key="Enter"
+                data-tip-body="Resolve coordinates via Astropy / CDS Sesame and load all multi-epoch near-infrared cutouts for this patch of sky.">
+          Slew Sky
+        </button>
       </div>
 
-      <!-- Filters: FOV and Detector Array -->
-      <div style="display:flex; align-items:center; gap:0.5rem; margin-left:auto;">
-        <div style="display:flex; align-items:center; gap:0.35rem; font-size:0.78rem; color:var(--text-secondary);">
-          <label for="fov-select">FOV:</label>
-          <select id="fov-select" class="btn" style="padding:0.4rem 0.6rem; font-size:0.75rem;">
-            <option value="2">2.0′ (Zoomed In)</option>
-            <option value="5">5.0′</option>
-            <option value="8" selected>8.0′ (Optimal)</option>
-            <option value="15">15.0′</option>
-            <option value="30">30.0′ (Wide Field)</option>
+      <!-- 5 Mandatory Space Apps Targets + Planet X -->
+      <div class="benchmark-strip">
+        <span class="strip-eyebrow">Targets:</span>
+        <button type="button" class="target-pill active" data-target="Barnard's Star"
+                data-tip-title="Barnard's Star (M4V Red Dwarf — 10.36″/yr)"
+                data-tip-body="Fastest proper motion star known! Shifts ~5.18 arcsec every 6-month SPHEREx survey. Switch to Difference Mode (D) to see a textbook dipole.">
+          <span class="pill-dot"></span> Barnard's Star
+        </button>
+        <button type="button" class="target-pill" data-target="WISE 0855"
+                data-tip-title="WISE 0855-0714 (250 K Sub-Freezing Y-Dwarf — 8.16″/yr)"
+                data-tip-body="RA 08h55m10.831s, Dec -07d14m42.53s. Invisible in Array 1, blazing bright in Array 6 (4.4–5.0 µm) with 3.05 µm water-ice clouds!">
+          <span class="pill-dot"></span> WISE 0855
+        </button>
+        <button type="button" class="target-pill" data-target="Epsilon Indi B"
+                data-tip-title="Epsilon Indi B (T1 + T6 Binary Brown Dwarf — 4.70″/yr)"
+                data-tip-body="Pair of brown dwarfs orbiting Epsilon Indi A. Click its core to inspect deep CH₄ methane absorption bands at 1.67 µm & 3.30 µm.">
+          <span class="pill-dot"></span> ε Indi B
+        </button>
+        <button type="button" class="target-pill" data-target="RW Aurigae"
+                data-tip-title="RW Aurigae (Young UXor Variable Star)"
+                data-tip-body="Stationary T Tauri star dimmed >1.6 magnitudes by dusty tidal streams in Survey 2 & 4. Shows a non-moving flux spot in Difference Mode.">
+          <span class="pill-dot"></span> RW Aurigae
+        </button>
+        <button type="button" class="target-pill" data-target="R Draconis"
+                data-tip-title="R Draconis (Mira Pulsating Giant — P = 245.6d)"
+                data-tip-body="Pulsating AGB red giant with huge cyclical infrared brightness swings across 6-month surveys and strong 4.67 µm CO absorption.">
+          <span class="pill-dot"></span> R Draconis
+        </button>
+        <button type="button" class="target-pill" data-target="Planet X Field"
+                data-tip-title="Hypothetical Planet X / TNO Search Patch"
+                data-tip-body="Simulated trans-Neptunian planetary candidate exhibiting subtle 6-month parallax displacement against static field stars.">
+          <span class="pill-dot"></span> Planet X
+        </button>
+      </div>
+
+      <!-- FOV & 102-Band Detector Array Selectors -->
+      <div class="instrument-selectors">
+        <div class="select-group"
+             data-tip-title="Field of View (FOV) Selector"
+             data-tip-body="Adjust angular patch size: smaller FOV (2′–5′) magnifies subtle brown dwarf shifts; wider FOV (15′–30′) tracks fast-moving comets & asteroids.">
+          <label for="fov-select">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
+              <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+            </svg>
+            FOV
+          </label>
+          <select id="fov-select">
+            <option value="2">2.0′ (High Mag)</option>
+            <option value="5">5.0′ (Detailed)</option>
+            <option value="8" selected>8.0′ (Standard)</option>
+            <option value="15">15.0′ (Wide)</option>
+            <option value="30">30.0′ (Survey)</option>
           </select>
         </div>
 
-        <div style="display:flex; align-items:center; gap:0.35rem; font-size:0.78rem; color:var(--text-secondary);">
-          <label for="array-select">Array:</label>
-          <select id="array-select" class="btn" style="padding:0.4rem 0.6rem; font-size:0.75rem;">
-            <option value="all" selected>All 102 Bands (Coadded)</option>
-            <option value="1">Array 1 (0.75 - 1.11 µm)</option>
-            <option value="2">Array 2 (1.11 - 1.64 µm)</option>
-            <option value="3">Array 3 (1.64 - 2.42 µm)</option>
-            <option value="4">Array 4 (2.42 - 3.82 µm: H2O Ice)</option>
-            <option value="5">Array 5 (3.82 - 4.42 µm: CO2)</option>
-            <option value="6">Array 6 (4.42 - 5.00 µm: 5µm Window)</option>
+        <div class="select-group"
+             data-tip-title="SPHEREx Detector Array & 102-Band Filter"
+             data-tip-body="Coadd all 102 bands for peak SNR, view a 3-band RGB infrared color composite, or isolate individual Detector Arrays 1–6 (17 bands each) to test temperature & ice features!">
+          <label for="array-select">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+              <polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+            </svg>
+            Bands
+          </label>
+          <select id="array-select">
+            <option value="all" selected>All 102 Bands (SNR Coadd)</option>
+            <option value="rgb">RGB False-Color (Arr 1/3/6)</option>
+            <option value="1">Array 1 (0.75–1.11 µm)</option>
+            <option value="2">Array 2 (1.11–1.64 µm • CH₄)</option>
+            <option value="3">Array 3 (1.64–2.42 µm • H₂O)</option>
+            <option value="4">Array 4 (2.42–3.82 µm • Ice)</option>
+            <option value="5">Array 5 (3.82–4.42 µm • CO₂ R~135)</option>
+            <option value="6">Array 6 (4.42–5.00 µm • Y-Dwarfs)</option>
           </select>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Main Grid Workspace -->
-  <main class="app-main">
-    <!-- Left Column: Primary Image Canvas / Aladin View -->
-    <div class="viewer-card">
-      <div class="card-header">
-        <div class="card-title-group">
-          <span id="display-target-name" class="card-title">Barnard's Star</span>
-          <span style="font-size:0.75rem; color:var(--text-muted); font-family:var(--font-mono);">• 6.2″/pixel</span>
+  <!-- ========================================================================
+       4. MAIN ZOONIVERSE CLASSIFIER WORKSPACE
+       ======================================================================== -->
+  <main id="classify" class="classifier-shell">
+
+    <!-- LEFT: SUBJECT VIEWER + VERTICAL ICON TOOLBAR + FLIPBOOK SCRUBBER -->
+    <section class="subject-workstation" aria-label="SPHEREx Multi-Epoch Subject Viewer">
+      <div class="subject-top-ribbon">
+        <div class="subject-id-group">
+          <span id="subject-id-badge" class="subject-tag"
+                data-tip-title="SPHEREx Archive Subject Identifier"
+                data-tip-body="Unique celestial tile identifier derived from ICRS Right Ascension and Declination.">
+            SUBJECT #SPX-26945-0441
+          </span>
+          <span id="display-target-name" class="subject-target-title">Barnard's Star</span>
+          <span id="hud-coords" class="subject-coords-mono">RA 269.4521° | Dec +4.6933°</span>
         </div>
-        <div class="view-tabs">
-          <button class="view-tab active" data-view="blink">Blink Comparator</button>
-          <button class="view-tab" data-view="aladin">CDS Aladin Lite (WISE / Gaia)</button>
+
+        <div class="viewer-mode-switcher">
+          <button type="button" class="viewer-view-btn active" data-view="blink"
+                  data-tip-title="Time-Series Blink Comparator"
+                  data-tip-body="Animates sequential SPHEREx 6-month sky surveys like a video flipbook so moving objects jump out against stationary background stars.">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <circle cx="12" cy="12" r="9"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor"/>
+            </svg>
+            Blink Video
+          </button>
+          <button type="button" class="viewer-view-btn" data-view="split"
+                  data-tip-title="Side-by-Side Epoch Comparison"
+                  data-tip-body="Displays Survey Epoch 1 alongside Survey Epoch 2 (or the Difference Subtraction image) simultaneously for static astrometric inspection.">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <rect x="3" y="4" width="18" height="16" rx="2"/><line x1="12" y1="4" x2="12" y2="20"/>
+            </svg>
+            Split 2-Up
+          </button>
+          <button type="button" class="viewer-view-btn" data-view="aladin"
+                  data-tip-title="CDS Aladin Lite Multi-Telescope Sky Overlay"
+                  data-tip-body="Cross-check this exact sky patch with real archival imagery from WISE, 2MASS, DSS2, and overlay live Gaia DR3 astrometric proper-motion catalogs.">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+            WISE / Gaia Sky
+          </button>
         </div>
       </div>
 
-      <!-- Viewport area -->
-      <div class="viewport-container">
-        <!-- Canvas for Blinker -->
-        <canvas id="blink-canvas"></canvas>
-        <!-- Aladin Lite Container -->
-        <div id="aladin-container"></div>
+      <!-- Subject Canvas Stage + Zooniverse Right-Attached Vertical Icon Toolbar -->
+      <div class="subject-stage-row">
+        <div class="viewport-frame">
+          <!-- Primary Blinker Canvas -->
+          <canvas id="blink-canvas" aria-label="Interactive SPHEREx Near-Infrared Sky Cutout"></canvas>
 
-        <!-- Floating HUD elements -->
-        <div class="viewport-hud-top">
-          <div id="hud-epoch-label" class="hud-pill">SPHEREx Survey 1 (May 2025)</div>
-          <div id="hud-coords" class="hud-pill">RA 269.4521° | Dec +4.6933°</div>
-        </div>
-        <div id="hud-cursor-coords" class="hud-cursor-info">Pixel: (0, 0) | Click to Extract 102-Band SED</div>
-      </div>
+          <!-- 2-Up Split Compare View -->
+          <div id="split-compare-container">
+            <div class="split-pane">
+              <canvas id="split-canvas-a"></canvas>
+              <span class="split-pane-label">EPOCH 1 (May 2025 Reference)</span>
+            </div>
+            <div class="split-pane">
+              <canvas id="split-canvas-b"></canvas>
+              <span class="split-pane-label">EPOCH 2 / DIFFERENCE VIEW</span>
+            </div>
+          </div>
 
-      <!-- Playback and Enhancement Controls -->
-      <div class="playback-bar">
-        <!-- Multi-epoch timeline stepper -->
-        <div class="timeline-row">
-          <div class="epoch-stepper">
-            <div class="epoch-node active" title="May 2025">Survey 1 (2025.3)</div>
-            <div class="epoch-node" title="Nov 2025">Survey 2 (2025.8)</div>
-            <div class="epoch-node" title="May 2026">Survey 3 (2026.3)</div>
-            <div class="epoch-node" title="Nov 2026">Survey 4 (2026.8)</div>
-            <div class="epoch-node" title="15-Year Historical Baseline">WISE Baseline (2010)</div>
+          <!-- CDS Aladin Lite Multi-Survey View -->
+          <div id="aladin-wrapper">
+            <div id="aladin-container"></div>
+            <div class="aladin-survey-bar">
+              <button type="button" class="survey-chip active" data-survey="P/allWISE/color"
+                      data-tip-title="NASA AllWISE Mid-Infrared (3.4, 4.6, 12 µm)"
+                      data-tip-body="Switch Aladin backdrop to WISE infrared survey — directly overlaps SPHEREx Arrays 4–6 and provides a 15-year motion baseline!">
+                AllWISE IR
+              </button>
+              <button type="button" class="survey-chip" data-survey="P/2MASS/color"
+                      data-tip-title="2MASS Near-Infrared (J, H, Ks — 1.2 to 2.2 µm)"
+                      data-tip-body="Switch Aladin backdrop to late-1990s 2MASS near-infrared survey matching SPHEREx Arrays 2 & 3.">
+                2MASS NIR
+              </button>
+              <button type="button" class="survey-chip" data-survey="P/DSS2/color"
+                      data-tip-title="Digitized Sky Survey Optical (DSS2)"
+                      data-tip-body="Compare optical sky plates: ultra-cool brown dwarfs like WISE 0855 are completely invisible here!">
+                DSS2 Optical
+              </button>
+            </div>
+          </div>
+
+          <!-- Top & Bottom Telemetry HUD Badges -->
+          <div class="hud-overlay-top">
+            <div id="hud-epoch-label" class="hud-badge"
+                 data-tip-title="Active Observation Timestamp"
+                 data-tip-body="Displays the SPHEREx all-sky survey pass and Modified Julian Date (MJD) currently rendered.">
+              SPHEREx Survey 1 (May 2025) • MJD 60810
+            </div>
+            <div id="hud-mode-badge" class="hud-badge gold"
+                 data-tip-title="Active Image Processing Mode"
+                 data-tip-body="Current display pipeline: Standard NIR, Inverted Negative (I), False-Color RGB (R), Epoch Difference (D), or Coadd Stack (C).">
+              STANDARD NIR
+            </div>
+          </div>
+
+          <div class="hud-overlay-bottom">
+            <div id="hud-cursor-coords" class="hud-readout">
+              Move cursor over sky to inspect WCS RA/Dec &amp; Flux • Click any object for 102-Band Spectrum
+            </div>
+          </div>
+
+          <!-- Stretch / Brightness / Contrast Popover -->
+          <div id="stretch-popover" class="stretch-popover">
+            <div class="popover-header">
+              <span>Histogram &amp; Stretch</span>
+              <button type="button" id="btn-close-stretch" style="background:none; border:none; cursor:pointer; font-weight:700;">✕</button>
+            </div>
+            <div class="slider-field">
+              <label for="slider-brightness"><span>Brightness</span><span id="lbl-brightness">100%</span></label>
+              <input type="range" id="slider-brightness" min="40" max="220" value="100">
+            </div>
+            <div class="slider-field">
+              <label for="slider-contrast"><span>Contrast</span><span id="lbl-contrast">100%</span></label>
+              <input type="range" id="slider-contrast" min="50" max="260" value="100">
+            </div>
+            <p style="font-size:0.7rem; color:var(--text-muted);">Boost contrast to isolate faint moving TNOs or reduce glare around bright Mira giants.</p>
+          </div>
+
+          <!-- Loading Spinner -->
+          <div id="viewer-loading" class="viewer-loading">
+            <div class="spinner-ring"></div>
+            <span>Synthesizing SPHEREx 102-Band Cutouts...</span>
           </div>
         </div>
 
-        <div class="controls-row">
-          <div class="button-cluster">
-            <button id="btn-play" class="btn btn-primary">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+        <!-- Zooniverse Attached Vertical Icon Toolbar (Every Icon Has Rich Hover Instructions!) -->
+        <aside class="zoo-subject-toolbar" aria-label="Subject Manipulation Tools">
+          <button type="button" id="tool-inspect" class="tool-icon-btn active"
+                  aria-label="Inspect and Extract 102-Band Spectrum"
+                  data-tip-title="Spectrum Aperture Pointer"
+                  data-tip-key="S"
+                  data-tip-body="Click any star, brown dwarf, or pixel in the image to extract its live 102-band near-infrared spectrum (0.75–5.0 µm) in the right panel.">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 4l7.07 17 2.51-7.39L21 11.07z"/>
+            </svg>
+          </button>
+
+          <button type="button" id="tool-mark" class="tool-icon-btn"
+                  aria-label="Mark Moving Object Candidate"
+                  data-tip-title="Mark Moving Candidate"
+                  data-tip-key="M"
+                  data-tip-body="Click directly on a shifting dot or dipole to drop a numbered Zooniverse discovery reticle (#1, #2...) and record its sky coordinates.">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="8"/><line x1="12" y1="2" x2="12" y2="6"/>
+              <line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/>
+              <line x1="18" y1="12" x2="22" y2="12"/>
+            </svg>
+          </button>
+
+          <button type="button" id="tool-pan" class="tool-icon-btn"
+                  aria-label="Pan Zoomed Image"
+                  data-tip-title="Pan Sky Cutout"
+                  data-tip-key="P"
+                  data-tip-body="Click and drag to pan around the sky cutout when zoomed in (you can also hold Shift + Drag at any time).">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/>
+              <polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/>
+              <line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/>
+            </svg>
+          </button>
+
+          <div class="toolbar-divider"></div>
+
+          <button type="button" id="tool-zoom-in" class="tool-icon-btn"
+                  aria-label="Zoom In"
+                  data-tip-title="Zoom In"
+                  data-tip-key="+"
+                  data-tip-body="Magnify the SPHEREx pixel grid (6.2″/px) to inspect sub-pixel proper motion shifts or close binary pairs. Mouse wheel also zooms.">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              <line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+            </svg>
+          </button>
+
+          <button type="button" id="tool-zoom-out" class="tool-icon-btn"
+                  aria-label="Zoom Out"
+                  data-tip-title="Zoom Out"
+                  data-tip-key="-"
+                  data-tip-body="Zoom back out toward the full cutout field of view.">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              <line x1="8" y1="11" x2="14" y2="11"/>
+            </svg>
+          </button>
+
+          <button type="button" id="tool-reset" class="tool-icon-btn"
+                  aria-label="Reset View"
+                  data-tip-title="Reset View & Stretch"
+                  data-tip-key="0"
+                  data-tip-body="Recenter the cutout at 1.0× zoom and restore default 100% brightness and contrast.">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+              <polyline points="3 3 3 8 8 8"/>
+            </svg>
+          </button>
+
+          <div class="toolbar-divider"></div>
+
+          <button type="button" id="tool-invert" class="tool-icon-btn"
+                  aria-label="Invert Image Colors"
+                  data-tip-title="Invert Colors (Negative Starfield)"
+                  data-tip-key="I"
+                  data-tip-body="Renders dark stars on a bright white background. Human vision detects faint moving dots significantly faster in inverted contrast!">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="9"/>
+              <path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/>
+            </svg>
+          </button>
+
+          <button type="button" id="tool-rgb" class="tool-icon-btn"
+                  aria-label="3-Band False-Color RGB Composite"
+                  data-tip-title="False-Color Infrared RGB"
+                  data-tip-key="R"
+                  data-tip-body="Maps Short NIR (Arr 1–2) → Blue, Mid NIR (Arr 3–4) → Green, Long NIR (Arr 5–6) → Red. Cold Y-dwarfs like WISE 0855 glow vivid crimson!">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="9" r="5.5"/><circle cx="8.5" cy="15" r="5.5"/><circle cx="15.5" cy="15" r="5.5"/>
+            </svg>
+          </button>
+
+          <button type="button" id="tool-diff" class="tool-icon-btn"
+                  aria-label="Subtract Epochs (Difference Image)"
+                  data-tip-title="Epoch Subtraction (Difference Image)"
+                  data-tip-key="D"
+                  data-tip-body="Subtracts Epoch A from Epoch B! Static stars cancel to neutral gray; moving objects pop out as cyan-hole + amber-peak dipoles!">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="11" height="11" rx="1.5"/>
+              <rect x="10" y="10" width="11" height="11" rx="1.5"/>
+              <line x1="13" y1="15.5" x2="18" y2="15.5"/>
+            </svg>
+          </button>
+
+          <button type="button" id="tool-coadd" class="tool-icon-btn"
+                  aria-label="Sum / Stack All Epochs (Coadd)"
+                  data-tip-title="Stack / Sum Epochs (Coadd)"
+                  data-tip-key="C"
+                  data-tip-body="Adds all survey epochs together to boost Signal-to-Noise Ratio (SNR) by √N, revealing ultra-faint background galaxies and smeared motion trails.">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 3 3 8 12 13 21 8 12 3"/>
+              <polyline points="3 13 12 18 21 13"/>
+              <polyline points="3 17.5 12 22.5 21 17.5"/>
+            </svg>
+          </button>
+
+          <button type="button" id="tool-stretch" class="tool-icon-btn"
+                  aria-label="Brightness and Contrast Sliders"
+                  data-tip-title="Brightness & Contrast Stretch"
+                  data-tip-key="B"
+                  data-tip-body="Open interactive sliders to fine-tune dynamic range, background sky suppression, and star core saturation.">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/>
+              <line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/>
+              <line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/>
+              <circle cx="4" cy="12" r="2"/><circle cx="12" cy="10" r="2"/><circle cx="20" cy="14" r="2"/>
+            </svg>
+          </button>
+
+          <div class="toolbar-divider"></div>
+
+          <button type="button" id="tool-grid" class="tool-icon-btn active-gold"
+                  aria-label="Toggle WCS Celestial Grid"
+                  data-tip-title="Toggle WCS Coordinate Grid & Compass"
+                  data-tip-key="G"
+                  data-tip-body="Show or hide the celestial RA/Dec reference grid, center target reticle, and North/East orientation compass.">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/>
+              <line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/>
+            </svg>
+          </button>
+
+          <button type="button" id="tool-gaia" class="tool-icon-btn"
+                  aria-label="Overlay Gaia DR3 Catalog Vectors"
+                  data-tip-title="Gaia DR3 Catalog & Proper Motion Overlay"
+                  data-tip-body="Overlays green squares & proper-motion vector arrows for cataloged optical stars. Moving infrared dots WITHOUT a Gaia box are prime brown dwarf or Planet X candidates!">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 19 21 12 17 5 21 12 2"/>
+            </svg>
+          </button>
+
+          <button type="button" id="tool-flags" class="tool-icon-btn active-gold"
+                  aria-label="Toggle Contamination Flags"
+                  data-tip-title="Contamination Flags Mask (FLAGS HDU)"
+                  data-tip-key="F"
+                  data-tip-body="Highlights pixels flagged in SPHEREx Level-2 metadata (e.g. Cosmic Ray hits in Survey 2 or H2RG warm pixels) so you don't mistake artifacts for asteroids.">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </button>
+        </aside>
+      </div>
+
+      <!-- Zooniverse Flipbook Scrubber & Subject Bottom Toolbar -->
+      <div class="flipbook-controls">
+        <!-- Difference Pair Selector (Appears when Difference Mode 'D' is active) -->
+        <div id="diff-pair-bar" class="diff-pair-bar">
+          <span><strong>Difference Math:</strong> Subtracting <span style="color:var(--zoo-teal-hover);">Image B − Image A</span> (Cyan = Old Position Deficit, Amber = New Position Excess)</span>
+          <div style="display:flex; align-items:center; gap:0.4rem;">
+            <label for="diff-epoch-b">Epoch B:</label>
+            <select id="diff-epoch-b"
+                    data-tip-title="Later / Comparison Epoch (B)"
+                    data-tip-body="Positive flux in the difference image comes from this epoch (shown as bright gold/amber)."></select>
+            <span>−</span>
+            <label for="diff-epoch-a">Epoch A:</label>
+            <select id="diff-epoch-a"
+                    data-tip-title="Reference / Baseline Epoch (A)"
+                    data-tip-body="Subtracted reference epoch (shown as dark cyan/blue where a moving source used to be). Try subtracting WISE 2010!"></select>
+          </div>
+        </div>
+
+        <div class="flipbook-primary-row">
+          <div class="playback-cluster">
+            <button type="button" id="btn-play" class="flip-btn play-active"
+                    data-tip-title="Play / Pause Time-Series Blink"
+                    data-tip-key="Space"
+                    data-tip-body="Start or pause the automatic multi-epoch blink loop across all SPHEREx 6-month sky surveys.">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
                 <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
               </svg>
               Pause
             </button>
-            <button id="btn-prev" class="btn" title="Previous Frame">◀ Step</button>
-            <button id="btn-next" class="btn" title="Next Frame">Step ▶</button>
-            <div class="speed-control">
-              <span>Speed:</span>
-              <input type="range" id="fps-slider" min="0.5" max="6.0" step="0.5" value="2.0">
-              <span id="fps-label">2.0 fps</span>
+
+            <button type="button" id="btn-prev" class="flip-btn"
+                    data-tip-title="Step Previous Epoch"
+                    data-tip-key="←"
+                    data-tip-body="Pause animation and step backward one survey frame to carefully verify astrometric motion.">
+              ◀
+            </button>
+
+            <div id="epoch-dots-container" class="epoch-dots" aria-label="Survey Epoch Frames">
+              <!-- Populated dynamically: E1, E2, E3, E4, W10 -->
             </div>
+
+            <button type="button" id="btn-next" class="flip-btn"
+                    data-tip-title="Step Next Epoch"
+                    data-tip-key="→"
+                    data-tip-body="Pause animation and advance forward one survey frame.">
+              ▶
+            </button>
+
+            <select id="speed-select" class="speed-pill-select"
+                    aria-label="Blink Playback Speed"
+                    data-tip-title="Blink Frame Rate (FPS)"
+                    data-tip-body="Control how fast epochs alternate: fast (4 fps) makes rapid motion jump out; slow (1 fps) helps inspect variable star dimming.">
+              <option value="1">1.0 fps (0.5×)</option>
+              <option value="2" selected>2.0 fps (1.0×)</option>
+              <option value="4">4.0 fps (2.0×)</option>
+              <option value="6">6.0 fps (3.0×)</option>
+            </select>
           </div>
 
-          <!-- Enhancement modes -->
-          <div class="mode-selector">
-            <button class="mode-btn active" data-mode="normal" title="Standard Near-Infrared">Normal</button>
-            <button class="mode-btn" data-mode="inverted" title="Inverted Greyscale (Optimal for spotting moving points)">Inverted</button>
-            <button class="mode-btn" data-mode="difference" title="Epoch B - Epoch A Subtraction (Reveals Dipoles)">Difference</button>
-            <button class="mode-btn" data-mode="coadd" title="Stacked Coaddition (Boosts SNR)">Coadd</button>
-          </div>
-        </div>
-      </div>
-    </div>
+          <!-- Zooniverse Bottom-Right Subject Action Icons -->
+          <div class="subject-meta-actions">
+            <button type="button" id="btn-subject-info" class="meta-icon-btn"
+                    aria-label="Subject Metadata and Contamination Flags"
+                    data-tip-title="Subject Info & Contamination Flags"
+                    data-tip-body="Inspect full FITS WCS coordinates, zodiacal dust background (ZODI), MJD dates, and Level-2 pixel bitmask flags.">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+              </svg>
+              Metadata
+            </button>
 
-    <!-- Right Column: Scientific & Discovery Analysis Panel -->
-    <div class="analysis-panel">
-      <!-- 102-Band SED Spectrum Card -->
-      <div class="panel-card">
-        <div class="panel-header">
-          <h2>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-            </svg>
-            102-Band Spectrophotometry (SED)
-          </h2>
-          <span id="meta-classification" class="badge badge-spherex">Loading...</span>
-        </div>
+            <button type="button" id="btn-favorite" class="meta-icon-btn"
+                    aria-label="Favorite Subject"
+                    data-tip-title="Favorite Sky Patch"
+                    data-tip-body="Bookmark this coordinate subject to your Zooniverse Favorites list.">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+              </svg>
+            </button>
 
-        <!-- Spectrum Canvas/Chart -->
-        <div class="chart-container">
-          <canvas id="sed-chart"></canvas>
-        </div>
+            <button type="button" id="btn-collect" class="meta-icon-btn"
+                    aria-label="Add to Collection"
+                    data-tip-title="Add to Discovery Collection"
+                    data-tip-body="Save this patch into your Collections drawer for side-by-side review.">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+                <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>
+                <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+              </svg>
+            </button>
 
-        <!-- Diagnostic molecular flags -->
-        <p style="font-size:0.72rem; color:var(--text-muted); margin-bottom:0.25rem;">KEY SPECTRAL ICE & GAS FEATURES:</p>
-        <div id="molecular-pills-container" class="molecular-flags">
-          <div class="mol-pill ice"><span>●</span> <strong>H2O Ice</strong> (3.05µm)</div>
-          <div class="mol-pill gas"><span>●</span> <strong>CO2 Ice/Gas</strong> (4.27µm)</div>
-          <div class="mol-pill gas"><span>●</span> <strong>CO Gas</strong> (4.67µm)</div>
-          <div class="mol-pill gas"><span>●</span> <strong>CH4 Methane</strong> (1.67 & 3.3µm)</div>
-        </div>
-      </div>
+            <button type="button" id="btn-export-gif" class="meta-icon-btn"
+                    aria-label="Download Animated GIF"
+                    data-tip-title="Download Blinking GIF"
+                    data-tip-body="Encodes all 5 survey frames directly in your browser into an animated looping GIF for Zooniverse Talk or presentations.">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              GIF
+            </button>
 
-      <!-- Candidate Discoveries Card -->
-      <div class="panel-card">
-        <div class="panel-header">
-          <h2>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-            </svg>
-            Discovery & Dipole Analyzer
-          </h2>
-          <button id="btn-export-csv" class="btn" style="padding:0.25rem 0.5rem; font-size:0.7rem;">Export CSV</button>
-        </div>
-
-        <div id="candidates-list">
-          <!-- Filled dynamically by DifferenceEngine -->
-        </div>
-
-        <!-- Metadata Grid -->
-        <div class="meta-grid">
-          <div class="meta-box">
-            <span>Spectral Coverage</span>
-            <strong id="meta-bands">102 Bands (0.75 - 5.0 µm)</strong>
-          </div>
-          <div class="meta-box">
-            <span>Signal-To-Noise Gain</span>
-            <strong id="meta-snr">+2.0x Coadd Gain</strong>
-          </div>
-          <div class="meta-box">
-            <span>Detector Resolution</span>
-            <strong>6.2″ per pixel</strong>
-          </div>
-          <div class="meta-box">
-            <span>Survey Cadence</span>
-            <strong>6 Months (All-Sky)</strong>
+            <button type="button" id="btn-share" class="meta-icon-btn"
+                    aria-label="Share Deep-Link and Embed URL"
+                    data-tip-title="Share Coordinate URL & Embed"
+                    data-tip-body="Generate a direct URL containing RA, Dec, FOV, and Band settings so anyone can open or iframe-embed this exact view.">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+              </svg>
+              Embed
+            </button>
           </div>
         </div>
       </div>
+    </section>
 
-      <!-- Action & Sharing Bar -->
-      <div class="panel-card" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.5rem;">
-        <div style="display:flex; align-items:center; gap:0.5rem;">
-          <button id="btn-export-gif" class="btn btn-accent">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            Export Blinking GIF
+    <!-- RIGHT: ZOONIVERSE TASK + ON-THE-FLY 102-BAND SPECTRA + TUTORIAL PANEL -->
+    <aside class="task-workstation" aria-label="Spectrophotometry and Citizen Science Task">
+      <div class="zoo-task-tabs">
+        <button type="button" class="zoo-task-tab active" data-tab="task"
+                data-tip-title="Task & 102-Band Spectrophotometer"
+                data-tip-body="Analyze the clicked object's 102-band infrared spectrum and record your citizen science classification.">
+          Task &amp; 102-Band SED
+        </button>
+        <button type="button" class="zoo-task-tab" data-tab="tutorial"
+                data-tip-title="Step-by-Step Observer Tutorial"
+                data-tip-body="Learn how volunteers discover brown dwarfs, comets, variable stars, and Planet X in SPHEREx images.">
+          Tutorial
+        </button>
+      </div>
+
+      <!-- TAB 1: SPECTROPHOTOMETER + CLASSIFICATION WORKFLOW -->
+      <div id="tab-body-task" class="task-tab-body">
+
+        <!-- On-the-Fly 102-Band Spectrophotometry Module -->
+        <div class="sed-module">
+          <div class="sed-header">
+            <h2 data-tip-title="On-The-Fly 102-Band Spectrophotometer"
+                data-tip-body="SPHEREx splits 0.75–5.0 µm light into 102 channels across 6 detector arrays (A1–A6). Click any star in the cutout to extract its spectrum!">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--zoo-teal-hover)" stroke-width="2.3">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+              </svg>
+              102-Band NIR Spectrum
+            </h2>
+            <span id="sed-classification-badge" class="sed-class-pill"
+                  data-tip-title="Automated Spectral Template Match"
+                  data-tip-body="Best-matching astrophysical source class inferred from continuum slope and molecular absorption troughs.">
+              Loading...
+            </span>
+          </div>
+
+          <div class="sed-subline">
+            <span id="sed-aperture-coords">Click any source in viewer to extract aperture SED</span>
+            <span>0.75 – 5.00 µm</span>
+          </div>
+
+          <div class="sed-canvas-box">
+            <canvas id="sed-chart" aria-label="102-Band Spectral Energy Distribution"></canvas>
+          </div>
+
+          <div id="molecular-pills-container" class="mol-band-strip">
+            <!-- Populated by SEDChart with interactive hover tooltips -->
+          </div>
+        </div>
+
+        <!-- Zooniverse Classification Task Question -->
+        <div class="zoo-question-block">
+          <p class="zoo-question-prompt">
+            What time-domain motion or brightness behavior do you observe in this SPHEREx patch?
+          </p>
+
+          <div class="zoo-choices-list">
+            <button type="button" class="zoo-choice-btn" data-choice="Fast-Moving Dipole (Brown Dwarf / Nearby Star)"
+                    data-tip-title="High Proper Motion Star or Brown Dwarf"
+                    data-tip-body="Select when a point source visibly hops across 6-month SPHEREx frames and forms a paired dark/bright dipole in Difference Mode (e.g. Barnard's Star, WISE 0855, ε Indi B).">
+              <span class="choice-left"><span class="choice-radio"></span> Fast-Moving Dipole (Brown Dwarf / Nearby Star)</span>
+            </button>
+
+            <button type="button" class="zoo-choice-btn" data-choice="Slow Shift / Outer Solar System (Planet X / TNO / Comet)"
+                    data-tip-title="Solar System Asteroid, Comet, or Planet X Candidate"
+                    data-tip-body="Select when an object shifts position between epochs and displays solar-reflected + 3.05 µm water-ice or thermal emission.">
+              <span class="choice-left"><span class="choice-radio"></span> Slow Shift / Solar System (Planet X / TNO / Comet)</span>
+            </button>
+
+            <button type="button" class="zoo-choice-btn" data-choice="Stationary Flux Change (Variable Star / YSO / Flare)"
+                    data-tip-title="Photometric Variable Star or Transient"
+                    data-tip-body="Select when the star stays at fixed RA/Dec coordinates while brightening or dimming between surveys (e.g. RW Aurigae dust dips or R Draconis Mira pulsations).">
+              <span class="choice-left"><span class="choice-radio"></span> Stationary Brightness Change (Variable Star / YSO)</span>
+            </button>
+
+            <button type="button" class="zoo-choice-btn" data-choice="Detector Artifact / Cosmic Ray Flag"
+                    data-tip-title="Instrumental Artifact or Cosmic Ray"
+                    data-tip-body="Select if the flash appears in only a single frame and coincides with a red Level-2 FLAGS warning triangle.">
+              <span class="choice-left"><span class="choice-radio"></span> Detector Artifact / Cosmic Ray Contamination</span>
+            </button>
+
+            <button type="button" class="zoo-choice-btn" data-choice="Static Background Field (No Motion Detected)"
+                    data-tip-title="No Moving or Variable Objects"
+                    data-tip-body="Select when all sources cancel cleanly in Difference Mode with no dipoles or flux residuals.">
+              <span class="choice-left"><span class="choice-radio"></span> Nothing Unusual (Static Background Field)</span>
+            </button>
+          </div>
+
+          <button type="button" id="btn-need-help" class="need-help-link"
+                  data-tip-title="Visual Classification Help"
+                  data-tip-body="Open quick visual examples comparing moving brown-dwarf dipoles, variable stars, and cosmic ray hits.">
+            Need some help with this task?
           </button>
-          <button id="btn-share" class="btn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
-              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
-              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
-            </svg>
-            Share Deep Link
+        </div>
+
+        <!-- Marked Candidates & Pipeline Dipole Detections -->
+        <div class="detections-box">
+          <div class="detections-header">
+            <span data-tip-title="Active Candidate Markers & Difference Pipeline"
+                  data-tip-body="Combines reticles you placed with the Marker tool (M) and automated >3.5σ dipole detections from epoch subtraction.">
+              Markers &amp; Dipole Detections
+            </span>
+            <button type="button" id="btn-export-csv" class="meta-icon-btn" style="height:24px; font-size:0.69rem;"
+                    data-tip-title="Export Candidate Table (CSV)"
+                    data-tip-body="Download a machine-readable CSV file containing coordinates, proper motion rates, and volunteer classifications.">
+              Export CSV
+            </button>
+          </div>
+          <div id="candidates-list"></div>
+        </div>
+
+        <!-- Zooniverse "Done & Talk" and "Done" Buttons -->
+        <div class="zoo-submit-row">
+          <button type="button" id="btn-done-talk" class="btn-done-talk"
+                  data-tip-title="Save Classification & Open Talk Log"
+                  data-tip-body="Record your classification and immediately open the Talk & Discovery sheet to review telemetry or export your findings.">
+            Done &amp; Talk
+          </button>
+          <button type="button" id="btn-done-submit" class="btn-done-submit"
+                  data-tip-title="Submit Classification"
+                  data-tip-body="Log your observation for this sky patch to your local Citizen Science Discovery ledger.">
+            Done →
           </button>
         </div>
-        <span style="font-size:0.72rem; color:var(--text-muted);">NASA Space Apps 2026 Citizen Science Platform</span>
       </div>
-    </div>
+
+      <!-- TAB 2: BUILT-IN TUTORIAL -->
+      <div id="tab-body-tutorial" class="task-tab-body hidden">
+        <div class="tutorial-step-card">
+          <div class="tutorial-step-num">Step 01 • Blink &amp; Invert</div>
+          <h3>Watch the Sky Shift Every 6 Months</h3>
+          <p>Press <strong>Play</strong> (<kbd>Space</kbd>) to blink through SPHEREx's 6-month all-sky passes plus the 2010 WISE baseline. Click the half-circle <strong>Invert</strong> icon (<kbd>I</kbd>) on the vertical toolbar — faint moving objects stand out sharply as black dots hopping across a white background.</p>
+        </div>
+        <div class="tutorial-step-card">
+          <div class="tutorial-step-num">Step 02 • Subtract Epochs to Reveal Dipoles</div>
+          <h3>Use Difference Mode (<kbd>D</kbd>)</h3>
+          <p>Click the overlapping-squares <strong>Difference</strong> icon (<kbd>D</kbd>). Stationary stars cancel to gray! Moving stars, brown dwarfs, and Planet X candidates appear as a paired <strong>cyan hole</strong> (where it was) + <strong>amber peak</strong> (where it moved). Variable stars appear as a single un-paired spot.</p>
+        </div>
+        <div class="tutorial-step-card">
+          <div class="tutorial-step-num">Step 03 • Fingerprint Molecules in 102 Bands</div>
+          <h3>Click Any Object &amp; Compare Detector Arrays</h3>
+          <p>Select the <strong>Pointer</strong> tool (<kbd>S</kbd>) and click any object to plot its 0.75–5.0 µm spectrum. Switch the top <strong>Bands</strong> menu between <code>Array 1</code> and <code>Array 6</code> or <code>RGB False-Color</code>: freezing Y-dwarfs like <em>WISE 0855</em> vanish at 1 µm and blaze crimson at 4.8 µm with a 3.05 µm water-ice trough!</p>
+        </div>
+        <div class="tutorial-step-card">
+          <div class="tutorial-step-num">Step 04 • Mark &amp; Log Your Discovery</div>
+          <h3>Tag Candidates (<kbd>M</kbd>) &amp; Cross-Check Gaia</h3>
+          <p>Toggle the <strong>Gaia DR3</strong> icon (triangle) or switch to the <strong>WISE / Gaia Sky</strong> tab. If your moving object has no optical Gaia box, mark it with the crosshair tool (<kbd>M</kbd>) and click <strong>Done</strong>!</p>
+        </div>
+      </div>
+    </aside>
   </main>
 
-  <!-- Footer -->
-  <footer class="app-footer">
-    <p>
-      SPHEREx Time-Domain Sky Explorer • Developed for the NASA Space Apps Challenge: 
-      <a href="https://www.spaceappschallenge.org/2026/challenges/planet-x-and-spherex/" target="_blank">Planet X and SPHEREx</a> • Powered by NASA SPHEREx, Astropy & CDS Aladin
-    </p>
+  <!-- ========================================================================
+       5. SIGNATURE ZOONIVERSE RIGHT-EDGE "FIELD GUIDE" DRAWER
+       ======================================================================== -->
+  <button type="button" id="btn-field-guide" class="field-guide-tab-trigger"
+          data-tip-title="Open Astronomical Field Guide"
+          data-tip-body="Slide open the visual reference catalog of brown dwarfs, proper-motion dipoles, variable stars, Planet X signatures, and detector artifacts.">
+    Field Guide
+  </button>
+
+  <aside id="field-guide-drawer" class="field-guide-drawer" aria-label="Field Guide Reference">
+    <div class="drawer-header">
+      <h2>SPHEREx Field Guide</h2>
+      <button type="button" id="btn-close-drawer" class="drawer-close-btn"
+              data-tip-title="Close Field Guide"
+              data-tip-body="Collapse the Field Guide drawer.">✕</button>
+    </div>
+    <div class="drawer-content">
+      <div class="fg-entry">
+        <h3>
+          <span>1. Cold Y-Dwarfs &amp; Water Ice Clouds</span>
+          <button type="button" class="target-pill fg-load-btn" data-fg-target="WISE 0855">Load WISE 0855</button>
+        </h3>
+        <p>Brown dwarfs cooler than 300 K emit almost zero visible or 1 µm light, peaking strongly in SPHEREx <strong>Array 6 (4.4–5.0 µm)</strong> with deep <strong>3.05 µm H₂O ice</strong> and <strong>3.3 µm CH₄</strong> absorption.</p>
+      </div>
+
+      <div class="fg-entry">
+        <h3>
+          <span>2. Fast Stellar Proper Motion Dipoles</span>
+          <button type="button" class="target-pill fg-load-btn" data-fg-target="Barnard's Star">Load Barnard's</button>
+        </h3>
+        <p>Nearby stars orbiting the Milky Way march steadily in a straight line across epochs. Subtracting surveys produces a crisp cyan-to-amber dipole aligned with their proper motion vector.</p>
+      </div>
+
+      <div class="fg-entry">
+        <h3>
+          <span>3. T-Dwarf Methane Binaries</span>
+          <button type="button" class="target-pill fg-load-btn" data-fg-target="Epsilon Indi B">Load ε Indi B</button>
+        </h3>
+        <p>T-type brown dwarfs (~1000 K) display unmistakable twin broad methane valleys at <strong>1.67 µm (Array 2)</strong> and <strong>3.30 µm (Array 4)</strong> alongside 4.7″/yr motion.</p>
+      </div>
+
+      <div class="fg-entry">
+        <h3>
+          <span>4. UXor Circumstellar Dust Occultations</span>
+          <button type="button" class="target-pill fg-load-btn" data-fg-target="RW Aurigae">Load RW Aur</button>
+        </h3>
+        <p>Young stars surrounded by dusty accretion disks dim dramatically when dust streams cross our line of sight, while showing strong >2 µm warm dust excess in their 102-band SED.</p>
+      </div>
+
+      <div class="fg-entry">
+        <h3>
+          <span>5. Mira Pulsating Red Giants</span>
+          <button type="button" class="target-pill fg-load-btn" data-fg-target="R Draconis">Load R Dra</button>
+        </h3>
+        <p>Asymptotic Giant Branch stars expand and contract over hundreds of days, creating large brightness changes without positional shift and deep <strong>4.67 µm CO</strong> absorption.</p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ========================================================================
+       6. UNIVERSAL ZOONIVERSE MODAL & TOAST NOTIFICATION
+       ======================================================================== -->
+  <div id="zoo-modal-backdrop" class="zoo-modal-backdrop" role="dialog" aria-modal="true">
+    <div class="zoo-modal">
+      <div class="zoo-modal-header">
+        <h3 id="zoo-modal-title">Subject Details</h3>
+        <button type="button" id="btn-close-modal" class="drawer-close-btn" style="border-color:var(--border-primary); color:var(--text-primary);">✕</button>
+      </div>
+      <div id="zoo-modal-body" class="zoo-modal-body"></div>
+    </div>
+  </div>
+
+  <div id="zoo-toast" role="status" aria-live="polite"></div>
+
+  <!-- ========================================================================
+       7. FOOTER
+       ======================================================================== -->
+  <footer class="zoo-footer">
+    <div class="zoo-footer-inner">
+      <span>
+        <strong>SPHEREx: Planet X &amp; Moving Worlds</strong> • Design Language Inspired by
+        <a href="https://www.zooniverse.org/projects/tbutrum/overlap-zoo" target="_blank" rel="noopener">Zooniverse Overlap Zoo</a> &amp;
+        <a href="http://backyardworlds.org/" target="_blank" rel="noopener">Backyard Worlds: Planet 9</a>
+      </span>
+      <span>
+        NASA Space Apps Challenge 2026 (<a href="https://www.spaceappschallenge.org/2026/challenges/planet-x-and-spherex/" target="_blank" rel="noopener">Challenge Brief</a>) • Powered by Astropy &amp; CDS Aladin Lite v3
+      </span>
+    </div>
   </footer>
 
-  <!-- Application Scripts -->
+  <!-- Scripts -->
+  <script src="js/tooltip.js"></script>
   <script src="js/gif_encoder.js"></script>
   <script src="js/blinker.js"></script>
   <script src="js/sed_chart.js"></script>
@@ -273,4 +898,3 @@
   <script src="js/app.js"></script>
 </body>
 </html>
-

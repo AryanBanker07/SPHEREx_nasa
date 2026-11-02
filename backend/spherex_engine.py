@@ -94,11 +94,29 @@ class SPHERExEngine:
         seed = int((abs(ra_deg) * 1000 + abs(dec_deg) * 10000) % 2**31)
         rng = np.random.RandomState(seed)
 
-        # Base background stars
+        # Base background stars (with temperatures for realistic multi-band colors)
         num_bg_stars = 25
         bg_x = rng.uniform(2, npix - 3, num_bg_stars)
         bg_y = rng.uniform(2, npix - 3, num_bg_stars)
         bg_flux = rng.exponential(scale=15.0, size=num_bg_stars) + 2.0
+        bg_temp = rng.uniform(3400.0, 9500.0, size=num_bg_stars)
+        bg_pm_ra = rng.normal(0.0, 14.0, size=num_bg_stars)
+        bg_pm_dec = rng.normal(0.0, 14.0, size=num_bg_stars)
+
+        gaia_sources = []
+        for idx_s in range(min(num_bg_stars, 15)):
+            s_ra, s_dec = wcs.wcs_pix2world([[bg_x[idx_s], bg_y[idx_s]]], 0)[0]
+            gaia_sources.append({
+                "id": f"Gaia DR3 {seed + idx_s * 7919}",
+                "x": round(float(bg_x[idx_s]), 2),
+                "y": round(float(bg_y[idx_s]), 2),
+                "ra": round(float(s_ra), 5),
+                "dec": round(float(s_dec), 5),
+                "g_mag": round(float(18.5 - 2.5 * np.log10(max(bg_flux[idx_s], 1.0))), 2),
+                "pm_ra": round(float(bg_pm_ra[idx_s]), 2),
+                "pm_dec": round(float(bg_pm_dec[idx_s]), 2),
+                "teff": round(float(bg_temp[idx_s]), 0)
+            })
 
         # Primary source parameters
         center_x = (npix - 1) / 2.0
@@ -139,10 +157,16 @@ class SPHERExEngine:
 
             # Generate flux 2D slice
             image_data = np.zeros((npix, npix), dtype=np.float32)
+            ch_short = np.zeros((npix, npix), dtype=np.float32)
+            ch_mid = np.zeros((npix, npix), dtype=np.float32)
+            ch_long = np.zeros((npix, npix), dtype=np.float32)
 
             # Zodiacal background (ZODI) ~ 0.3 - 0.7 MJy/sr
             zodi_level = 0.45 + 0.05 * np.sin(ra_deg / 57.3)
             image_data += zodi_level
+            ch_short += zodi_level * 0.7
+            ch_mid += zodi_level * 0.9
+            ch_long += zodi_level * 1.35
 
             # Gaussian PSF renderer
             psf_fwhm = 1.5  # pixels
@@ -151,31 +175,71 @@ class SPHERExEngine:
             y_grid, x_grid = np.mgrid[0:npix, 0:npix]
 
             # Render background stars
-            for bx, by, bf in zip(bg_x, bg_y, bg_flux):
+            for bx, by, bf, bt in zip(bg_x, bg_y, bg_flux, bg_temp):
                 r2 = (x_grid - bx)**2 + (y_grid - by)**2
-                image_data += bf * np.exp(-r2 / (2 * sigma**2))
+                psf_val = np.exp(-r2 / (2 * sigma**2))
+                # Color weighting based on star temperature
+                blue_w = np.clip(bt / 5800.0, 0.5, 1.5)
+                red_w = np.clip(4500.0 / bt, 0.45, 1.4)
+                if array_selection in ["1", "2"]:
+                    band_scale = blue_w
+                elif array_selection in ["5", "6"]:
+                    band_scale = red_w
+                else:
+                    band_scale = 1.0
+                image_data += (bf * band_scale) * psf_val
+                ch_short += (bf * blue_w) * psf_val
+                ch_mid += bf * psf_val
+                ch_long += (bf * red_w) * psf_val
 
             # Render target
-            # Target flux depends on array selection and target spectral type
             primary_flux = cls._get_target_band_flux(target_name, array_selection) * flux_multiplier
             r2_target = (x_grid - current_target_x)**2 + (y_grid - current_target_y)**2
-            image_data += primary_flux * np.exp(-r2_target / (2 * sigma**2))
+            psf_target = np.exp(-r2_target / (2 * sigma**2))
+            image_data += primary_flux * psf_target
+
+            ch_short += cls._get_target_band_flux(target_name, "1") * flux_multiplier * psf_target
+            ch_mid += cls._get_target_band_flux(target_name, "3") * flux_multiplier * psf_target
+            ch_long += cls._get_target_band_flux(target_name, "6") * flux_multiplier * psf_target
 
             # Add Poisson & read noise
             noise = rng.normal(0, 0.15, size=(npix, npix)).astype(np.float32)
             image_data = np.clip(image_data + noise, 0, None)
+            ch_short = np.clip(ch_short + noise * 0.8, 0, None)
+            ch_mid = np.clip(ch_mid + noise * 0.8, 0, None)
+            ch_long = np.clip(ch_long + noise * 0.9, 0, None)
 
             # Generate Level 2 FLAGS and VARIANCE
             variance_data = (image_data * 0.05 + 0.02).astype(np.float32)
             flags_data = np.zeros((npix, npix), dtype=np.uint16)
-            # Add synthetic cosmic ray in 1 frame
+            flag_events = []
+            # Add synthetic cosmic ray in Epoch 2 & hot pixel in Epoch 3
             if ep["id"] == "epoch_2":
                 cr_x, cr_y = int(npix * 0.25), int(npix * 0.75)
                 image_data[cr_y, cr_x] += 120.0
+                ch_short[cr_y, cr_x] += 120.0
                 flags_data[cr_y, cr_x] |= 2  # bit 1: cosmic ray
+                flag_events.append({
+                    "x": cr_x, "y": cr_y, "bit": 2,
+                    "flag": "COSMIC_RAY_HIT",
+                    "note": "Single-read transient spike flagged in Level-2 MEF FLAGS HDU"
+                })
+            elif ep["id"] == "epoch_3":
+                hp_x, hp_y = int(npix * 0.78), int(npix * 0.22)
+                flags_data[hp_y, hp_x] |= 4  # bit 2: hot/warm pixel
+                flag_events.append({
+                    "x": hp_x, "y": hp_y, "bit": 4,
+                    "flag": "WARM_DETECTOR_PIXEL",
+                    "note": "HgCdTe H2RG dark-current warm pixel calibrated out"
+                })
 
             # Convert to display PNG (Base64)
-            img_b64 = cls._array_to_png_base64(image_data)
+            if array_selection == "rgb":
+                rgb_b64 = cls._channels_to_rgb_base64(ch_long, ch_mid, ch_short)
+                img_b64 = rgb_b64
+            else:
+                img_b64 = cls._array_to_png_base64(image_data)
+                rgb_b64 = cls._channels_to_rgb_base64(ch_long, ch_mid, ch_short)
             inv_b64 = cls._array_to_png_base64(image_data, invert=True)
 
             epoch_frames.append({
@@ -183,12 +247,15 @@ class SPHERExEngine:
                 "label": ep["label"],
                 "date": ep["date"],
                 "mjd": ep["mjd"],
+                "zodi_mjy_sr": round(float(zodi_level), 3),
                 "image_b64": img_b64,
+                "rgb_b64": rgb_b64,
                 "invert_b64": inv_b64,
                 "target_x": round(float(current_target_x), 2),
                 "target_y": round(float(current_target_y), 2),
                 "shift_ra_arcsec": round(float(shift_ra_arcsec), 2),
                 "shift_dec_arcsec": round(float(shift_dec_arcsec), 2),
+                "flags": flag_events,
                 "raw_matrix": image_data.tolist()
             })
 
@@ -199,6 +266,8 @@ class SPHERExEngine:
             "fov_arcmin": fov_arcmin,
             "npix": npix,
             "pixel_scale": PIXEL_SCALE_ARCSEC,
+            "array_selection": array_selection,
+            "gaia_sources": gaia_sources,
             "epochs": epoch_frames,
             "wcs_header": dict(wcs.to_header())
         }
@@ -258,4 +327,20 @@ class SPHERExEngine:
         buffer = io.BytesIO()
         img.save(buffer, format="PNG")
         return base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+    @classmethod
+    def _channels_to_rgb_base64(cls, r_ch: np.ndarray, g_ch: np.ndarray, b_ch: np.ndarray) -> str:
+        """Creates Lupton-inspired 3-band near-IR RGB false-color composite PNG base64."""
+        def _stretch(ch: np.ndarray) -> np.ndarray:
+            vmin = np.percentile(ch, 2)
+            vmax = max(np.percentile(ch, 99.6), vmin + 1.0)
+            norm = np.clip((ch - vmin) / max(vmax - vmin, 1e-5), 0, 1)
+            return (np.arcsinh(12.0 * norm) / np.arcsinh(12.0) * 255).astype(np.uint8)
+
+        rgb = np.stack([_stretch(r_ch), _stretch(g_ch), _stretch(b_ch)], axis=-1)
+        img = Image.fromarray(rgb, mode="RGB")
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        return base64.b64encode(buffer.getvalue()).decode("utf-8")
+
 

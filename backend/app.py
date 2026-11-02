@@ -44,8 +44,10 @@ class CoaddRequest(BaseModel):
 
 class SpectrumRequest(BaseModel):
     target_name: str = Field(..., description="Target name")
-    pixel_x: Optional[float] = Field(None, description="Clicked pixel X")
-    pixel_y: Optional[float] = Field(None, description="Clicked pixel Y")
+    pixel_x: Optional[float] = Field(None, description="Clicked pixel X in data coordinates")
+    pixel_y: Optional[float] = Field(None, description="Clicked pixel Y in data coordinates")
+    center_x: Optional[float] = Field(38.0, description="Target center pixel X in data coordinates")
+    center_y: Optional[float] = Field(38.0, description="Target center pixel Y in data coordinates")
 
 
 def create_app() -> FastAPI:
@@ -151,7 +153,9 @@ def create_app() -> FastAPI:
             return SEDExtractor.extract_spectrum(
                 target_name=req.target_name,
                 pixel_x=req.pixel_x,
-                pixel_y=req.pixel_y
+                pixel_y=req.pixel_y,
+                center_x=req.center_x if req.center_x is not None else 38.0,
+                center_y=req.center_y if req.center_y is not None else 38.0
             )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Spectra extraction error: {str(e)}")
