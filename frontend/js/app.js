@@ -223,8 +223,273 @@ class SPHERExApp {
   }
 
   _loadStandaloneFallback(targetName, ra, dec) {
-    // Generate simulated canvas frames for offline / direct browser usage
-    alert('Connecting to standalone offline simulation mode.');
+    // Complete client-side simulation engine (for static deployments like Vercel / GitHub Pages)
+    const meta = FALLBACK_BENCHMARKS[targetName] || {
+      name: targetName,
+      ra: ra,
+      dec: dec,
+      pm_ra_cosdec: 0,
+      pm_dec: 0,
+      type: "Custom Astronomical Source",
+      description: "Custom coordinate field query."
+    };
+
+    const npix = 128;
+    const offCanvas = document.createElement('canvas');
+    offCanvas.width = npix;
+    offCanvas.height = npix;
+    const ctx = offCanvas.getContext('2d');
+
+    const epochsInfo = [
+      { id: "epoch_1", label: "SPHEREx Survey 1 (May 2025)", date: "2025-05-15", yr: 2025.37 },
+      { id: "epoch_2", label: "SPHEREx Survey 2 (Nov 2025)", date: "2025-11-15", yr: 2025.87 },
+      { id: "epoch_3", label: "SPHEREx Survey 3 (May 2026)", date: "2026-05-15", yr: 2026.37 },
+      { id: "epoch_4", label: "SPHEREx Survey 4 (Nov 2026)", date: "2026-11-15", yr: 2026.87 },
+      { id: "wise_ref", label: "WISE Baseline Reference (2010)", date: "2010-06-01", yr: 2010.42 }
+    ];
+
+    let seed = Math.abs(Math.sin(ra * 100 + dec * 50) * 10000);
+    const rng = () => {
+      seed = (seed * 9301 + 49297) % 233280;
+      return seed / 233280;
+    };
+
+    const bgStars = [];
+    for (let i = 0; i < 28; i++) {
+      bgStars.push({
+        x: 6 + rng() * (npix - 12),
+        y: 6 + rng() * (npix - 12),
+        b: 50 + rng() * 160,
+        r: 1.0 + rng() * 1.5
+      });
+    }
+
+    const epochFrames = [];
+    const center = npix / 2;
+    const pixelScale = 6.2;
+
+    epochsInfo.forEach((ep) => {
+      ctx.fillStyle = '#080a10';
+      ctx.fillRect(0, 0, npix, npix);
+
+      // Draw background stars
+      bgStars.forEach(s => {
+        const grad = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r * 2.2);
+        grad.addColorStop(0, `rgba(${s.b}, ${s.b}, ${Math.min(255, s.b + 30)}, 0.95)`);
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r * 2.2, 0, 2 * Math.PI);
+        ctx.fill();
+      });
+
+      // Target position
+      const dt = ep.yr - 2025.37;
+      const shiftX = -((meta.pm_ra_cosdec / 1000.0) * dt) / pixelScale;
+      const shiftY = ((meta.pm_dec / 1000.0) * dt) / pixelScale;
+
+      const tx = center + shiftX;
+      const ty = center + shiftY;
+
+      let targetB = 240;
+      let targetColor = '255, 230, 200';
+      if (meta.name.includes('WISE 0855')) {
+        targetColor = '255, 140, 80';
+      } else if (meta.name.includes('RW Aur')) {
+        if (ep.id === 'epoch_2') targetB = 60;
+        else if (ep.id === 'epoch_4') targetB = 85;
+      } else if (meta.name.includes('R Dra')) {
+        const ph = (dt % 0.67) / 0.67 * 2 * Math.PI;
+        targetB = Math.round(90 + 140 * ((Math.cos(ph) + 1) / 2));
+      }
+
+      const tGrad = ctx.createRadialGradient(tx, ty, 0, tx, ty, 4.5);
+      tGrad.addColorStop(0, `rgba(${targetColor}, ${targetB / 255})`);
+      tGrad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = tGrad;
+      ctx.beginPath();
+      ctx.arc(tx, ty, 4.5, 0, 2 * Math.PI);
+      ctx.fill();
+
+      // Normal PNG
+      const normB64 = offCanvas.toDataURL('image/png').split(',')[1];
+
+      // Inverted PNG
+      const imgData = ctx.getImageData(0, 0, npix, npix);
+      const d = imgData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const lum = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
+        const inv = 255 - lum;
+        d[i] = inv;
+        d[i+1] = inv;
+        d[i+2] = inv;
+      }
+      ctx.putImageData(imgData, 0, 0);
+      const invB64 = offCanvas.toDataURL('image/png').split(',')[1];
+
+      epochFrames.push({
+        epoch_id: ep.id,
+        label: ep.label,
+        date: ep.date,
+        image_b64: normB64,
+        invert_b64: invB64,
+        target_x: tx,
+        target_y: ty,
+        shift_ra_arcsec: -shiftX * pixelScale,
+        shift_dec_arcsec: shiftY * pixelScale
+      });
+    });
+
+    // Difference image synthesis
+    ctx.fillStyle = '#808080';
+    ctx.fillRect(0, 0, npix, npix);
+
+    const candidates = [];
+    const hasProperMotion = Math.abs(meta.pm_ra_cosdec) > 50 || Math.abs(meta.pm_dec) > 50;
+    const isVariable = meta.name.includes('RW Aur') || meta.name.includes('R Dra');
+
+    if (hasProperMotion) {
+      const dt = 0.5;
+      const sx = -((meta.pm_ra_cosdec / 1000.0) * dt) / pixelScale;
+      const sy = ((meta.pm_dec / 1000.0) * dt) / pixelScale;
+
+      // Cyan deficit at Epoch 1
+      const gNeg = ctx.createRadialGradient(center, center, 0, center, center, 5.0);
+      gNeg.addColorStop(0, 'rgba(0, 200, 255, 0.95)');
+      gNeg.addColorStop(1, 'rgba(128, 128, 128, 0)');
+      ctx.fillStyle = gNeg;
+      ctx.beginPath();
+      ctx.arc(center, center, 5.0, 0, 2 * Math.PI);
+      ctx.fill();
+
+      // Amber excess at Epoch 2
+      const gPos = ctx.createRadialGradient(center + sx, center + sy, 0, center + sx, center + sy, 5.0);
+      gPos.addColorStop(0, 'rgba(255, 200, 50, 0.95)');
+      gPos.addColorStop(1, 'rgba(128, 128, 128, 0)');
+      ctx.fillStyle = gPos;
+      ctx.beginPath();
+      ctx.arc(center + sx, center + sy, 5.0, 0, 2 * Math.PI);
+      ctx.fill();
+
+      const dispArcsec = Math.hypot(sx, sy) * pixelScale;
+      candidates.push({
+        id: "dipole_1",
+        category: "Moving Object Dipole",
+        displacement_arcsec: dispArcsec.toFixed(2),
+        proper_motion_rate: (dispArcsec / 0.5).toFixed(2),
+        description: `Bipolar dipole detected: Shifts ${dispArcsec.toFixed(2)}″ over 0.5 yr. Fast moving infrared source.`
+      });
+    } else if (isVariable) {
+      const gVar = ctx.createRadialGradient(center, center, 0, center, center, 5.0);
+      gVar.addColorStop(0, 'rgba(255, 80, 80, 0.95)');
+      gVar.addColorStop(1, 'rgba(128, 128, 128, 0)');
+      ctx.fillStyle = gVar;
+      ctx.beginPath();
+      ctx.arc(center, center, 5.0, 0, 2 * Math.PI);
+      ctx.fill();
+
+      candidates.push({
+        id: "variable_1",
+        category: "Variable / Transient",
+        displacement_arcsec: "0.00",
+        proper_motion_rate: "0.00",
+        description: "Monochromatic stationary flux variation: Deep magnitude change between survey epochs."
+      });
+    }
+
+    const diffB64 = offCanvas.toDataURL('image/png').split(',')[1];
+
+    const cubeData = {
+      target: targetName,
+      ra: ra,
+      dec: dec,
+      fov_arcmin: this.state.fov,
+      npix: npix,
+      pixel_scale: pixelScale,
+      epochs: epochFrames
+    };
+
+    const diffData = {
+      epoch_a: "Survey 1",
+      epoch_b: "Survey 2",
+      difference_b64: diffB64,
+      candidates: candidates,
+      has_dipole: hasProperMotion,
+      has_variable: isVariable
+    };
+
+    const coaddData = {
+      coadd_b64: epochFrames[0].image_b64,
+      snr_boost_factor: "2.0x"
+    };
+
+    // 102-Band Spectrum Synthesis
+    const spectralPoints = [];
+    for (let i = 0; i < 102; i++) {
+      const arrId = Math.floor(i / 17) + 1;
+      const w = 0.75 + (i / 101.0) * (5.00 - 0.75);
+      let flux = 20.0;
+
+      if (meta.name.includes('WISE 0855')) {
+        flux = Math.pow(w / 5.0, 4.5) * 45.0;
+        if (Math.abs(w - 3.05) < 0.2) flux *= 0.35; // H2O ice absorption
+        if (Math.abs(w - 3.30) < 0.1) flux *= 0.45; // CH4 absorption
+        if (w < 1.6) flux = 0.5 + Math.random() * 0.5;
+      } else if (meta.name.includes('Epsilon Indi')) {
+        flux = 35.0 * Math.exp(-Math.pow(w - 1.5, 2) / 2.0);
+        if (Math.abs(w - 1.67) < 0.08) flux *= 0.4;
+        if (Math.abs(w - 3.30) < 0.12) flux *= 0.35;
+      } else if (meta.name.includes('Barnard')) {
+        flux = 60.0 * Math.exp(-Math.pow(w - 1.2, 2) / 3.0) + 10.0;
+      } else if (meta.name.includes('RW Aur')) {
+        flux = 30.0 + 15.0 * Math.pow(w / 3.0, 1.2);
+      } else if (meta.name.includes('R Dra')) {
+        flux = 55.0 * Math.exp(-Math.pow(w - 2.2, 2) / 4.0);
+        if (Math.abs(w - 4.67) < 0.15) flux *= 0.5;
+      }
+
+      spectralPoints.push({
+        band_index: i + 1,
+        detector_array: arrId,
+        wavelength_um: parseFloat(w.toFixed(4)),
+        flux_mjy_sr: parseFloat((flux + (Math.random() - 0.5) * 0.8).toFixed(3)),
+        uncertainty: 0.25
+      });
+    }
+
+    const molMarkers = [
+      { name: "CH4 (Methane)", center_um: 1.67, species: "Methane" },
+      { name: "H2O (Vapor)", center_um: 1.90, species: "Water Vapor" },
+      { name: "CO (Overtone)", center_um: 2.32, species: "Carbon Monoxide" },
+      { name: "H2O Ice (Crucial)", center_um: 3.05, species: "Water Ice Absorption" },
+      { name: "CH4 / PAH", center_um: 3.30, species: "Hydrocarbons" },
+      { name: "CO2 Fundamental", center_um: 4.27, species: "Carbon Dioxide" },
+      { name: "CO Fundamental", center_um: 4.67, species: "Carbon Monoxide" }
+    ];
+
+    const specData = {
+      target: targetName,
+      classification: meta.type || "Near-Infrared Source",
+      total_bands: 102,
+      molecular_markers: molMarkers,
+      spectral_points: spectralPoints
+    };
+
+    this.state.currentCube = cubeData;
+    this.state.currentDiff = diffData;
+    this.state.currentCoadd = coaddData;
+    this.state.currentSpectrum = specData;
+
+    this.blinker.loadData(cubeData, diffData, coaddData);
+    this.blinker.setDisplayMode(this.state.mode);
+    this.sedChart.renderSpectrum(specData);
+
+    if (this.aladin) {
+      this.aladin.goto(ra, dec, this.state.fov / 60.0);
+    }
+
+    this._updateCandidatesUI(diffData);
+    this._updateMetadataUI(cubeData, specData);
   }
 
   _bindEvents() {
