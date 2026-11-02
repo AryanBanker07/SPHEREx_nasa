@@ -133,15 +133,10 @@ class SPHERExZooApp {
     // Initialize Universal Hover Tooltip HUD
     this.tooltipEngine = new window.ZooTooltipEngine();
 
-    // Initialize Subject Viewer Canvases
+    // Initialize HiDPI Subject Viewer Canvases
     const canvas = document.getElementById('blink-canvas');
-    canvas.width = 560;
-    canvas.height = 560;
-
     const splitA = document.getElementById('split-canvas-a');
     const splitB = document.getElementById('split-canvas-b');
-    splitA.width = 360; splitA.height = 360;
-    splitB.width = 360; splitB.height = 360;
 
     this.blinker = new window.SkyBlinker(canvas, {
       splitCanvasA: splitA,
@@ -561,9 +556,71 @@ class SPHERExZooApp {
         flags.push({ x: hx, y: hy, bit: 4, flag: 'WARM_DETECTOR_PIXEL', note: 'H2RG dark-current warm pixel masked' });
       }
 
-      const normB64 = this._matrixToPngB64(mat, false);
-      const invB64 = this._matrixToPngB64(mat, true);
-      const rgbB64 = this._rgbMatricesToPngB64(chL, chM, chS);
+      // Render supersampled 288x288 sub-pixel starfield for crisp HiDPI browser display
+      const hiNpix = 288;
+      const hiScale = hiNpix / npix;
+      const hiSigma = 0.46;
+      const hiMat = Array.from({ length: hiNpix }, () => new Float32Array(hiNpix));
+      const hiS = Array.from({ length: hiNpix }, () => new Float32Array(hiNpix));
+      const hiM = Array.from({ length: hiNpix }, () => new Float32Array(hiNpix));
+      const hiL = Array.from({ length: hiNpix }, () => new Float32Array(hiNpix));
+
+      const tPrimary = targetBandFlux(arraySelection) * fMult;
+      const tShort = targetBandFlux('1') * fMult;
+      const tMid = targetBandFlux('3') * fMult;
+      const tLong = targetBandFlux('6') * fMult;
+
+      for (let hy = 0; hy < hiNpix; hy++) {
+        const wy = (hy + 0.5) / hiScale - 0.5;
+        for (let hx = 0; hx < hiNpix; hx++) {
+          const wx = (hx + 0.5) / hiScale - 0.5;
+          let hv = zodi + (rand() - 0.5) * 0.12;
+          let hvs = zodi * 0.7, hvm = zodi * 0.9, hvl = zodi * 1.3;
+
+          for (let s = 0; s < bgStars.length; s++) {
+            const st = bgStars[s];
+            const dx = wx - st.x, dy = wy - st.y;
+            if (Math.abs(dx) > 4.2 || Math.abs(dy) > 4.2) continue;
+            const r2 = dx * dx + dy * dy;
+            const psf = Math.exp(-r2 / (2 * hiSigma * hiSigma)) + 0.12 * Math.exp(-r2 / (2 * Math.pow(hiSigma * 2.4, 2)));
+            const bw = Math.min(1.5, Math.max(0.5, st.teff / 5800));
+            const rw = Math.min(1.4, Math.max(0.45, 4500 / st.teff));
+            const scale = (arraySelection === '1' || arraySelection === '2') ? bw : ((arraySelection === '5' || arraySelection === '6') ? rw : 1.0);
+            hv += st.flux * scale * psf;
+            hvs += st.flux * bw * psf;
+            hvm += st.flux * psf;
+            hvl += st.flux * rw * psf;
+          }
+
+          const dtx = wx - tx, dty = wy - ty;
+          if (Math.abs(dtx) <= 5.5 && Math.abs(dty) <= 5.5) {
+            const tr2 = dtx * dtx + dty * dty;
+            let tPsf = Math.exp(-tr2 / (2 * hiSigma * hiSigma)) + 0.16 * Math.exp(-tr2 / (2 * Math.pow(hiSigma * 2.6, 2)));
+            if (tPrimary > 18) {
+              tPsf += 0.13 * (Math.exp(-Math.abs(dtx) / 0.16) * Math.exp(-Math.abs(dty) / 3.0) + Math.exp(-Math.abs(dty) / 0.16) * Math.exp(-Math.abs(dtx) / 3.0));
+            }
+            hv += tPrimary * tPsf;
+            hvs += tShort * tPsf;
+            hvm += tMid * tPsf;
+            hvl += tLong * tPsf;
+          }
+
+          hiMat[hy][hx] = Math.max(0, hv);
+          hiS[hy][hx] = Math.max(0, hvs);
+          hiM[hy][hx] = Math.max(0, hvm);
+          hiL[hy][hx] = Math.max(0, hvl);
+        }
+      }
+
+      if (ep.id === 'epoch_2') {
+        const hcx = Math.floor((Math.floor(npix * 0.25) + 0.5) * hiScale);
+        const hcy = Math.floor((Math.floor(npix * 0.75) + 0.5) * hiScale);
+        if (hiMat[hcy]) hiMat[hcy][hcx] += 95;
+      }
+
+      const normB64 = this._matrixToPngB64(hiMat, false);
+      const invB64 = this._matrixToPngB64(hiMat, true);
+      const rgbB64 = this._rgbMatricesToPngB64(hiL, hiM, hiS);
 
       return {
         epoch_id: ep.id,
@@ -662,6 +719,14 @@ class SPHERExZooApp {
     }
     ctx.putImageData(imgData, 0, 0);
 
+    // Smooth upsample to 320x320 for crisp HiDPI difference dipole rendering
+    const hiCv = document.createElement('canvas');
+    hiCv.width = 320; hiCv.height = 320;
+    const hiCtx = hiCv.getContext('2d');
+    hiCtx.imageSmoothingEnabled = true;
+    hiCtx.imageSmoothingQuality = 'high';
+    hiCtx.drawImage(cv, 0, 0, 320, 320);
+
     const candidates = [];
     const distPx = Math.hypot(posPt[0] - negPt[0], posPt[1] - negPt[1]);
     if (maxPos > 6 && minNeg < -6 && distPx >= 0.5 && distPx <= 35) {
@@ -687,7 +752,7 @@ class SPHERExZooApp {
       epoch_a: epA.label,
       epoch_b: epB.label,
       dt_years: dtYears,
-      difference_b64: cv.toDataURL('image/png').split(',')[1],
+      difference_b64: hiCv.toDataURL('image/png').split(',')[1],
       candidates,
       has_dipole: candidates.some(c => c.category === 'Moving Object Dipole'),
       has_variable: candidates.some(c => c.category === 'Variable / Transient')
@@ -697,10 +762,21 @@ class SPHERExZooApp {
   _synthesizeClientSpectrum(targetName, isPrimaryTarget = true, bgTeff = 5400) {
     const pts = [];
     let classification = 'Field Star Photosphere (G/K Continuum)';
+    const arrayBounds = [
+      [0.75, 1.11],
+      [1.11, 1.64],
+      [1.64, 2.42],
+      [2.42, 3.82],
+      [3.82, 4.42],
+      [4.42, 5.00]
+    ];
 
     for (let i = 0; i < 102; i++) {
-      const arr = Math.floor(i / 17) + 1;
-      const w = 0.75 + (i / 101) * (5.0 - 0.75);
+      const arrIdx = Math.floor(i / 17);
+      const subIdx = i % 17;
+      const arr = arrIdx + 1;
+      const [w0, w1] = arrayBounds[arrIdx];
+      const w = w0 + (subIdx / 16) * (w1 - w0);
       let f = 14.0;
 
       if (!isPrimaryTarget) {
@@ -790,6 +866,15 @@ class SPHERExZooApp {
       }
     }
     ctx.putImageData(img, 0, 0);
+    if (npix < 256) {
+      const hi = document.createElement('canvas');
+      hi.width = 320; hi.height = 320;
+      const hctx = hi.getContext('2d');
+      hctx.imageSmoothingEnabled = true;
+      hctx.imageSmoothingQuality = 'high';
+      hctx.drawImage(cv, 0, 0, 320, 320);
+      return hi.toDataURL('image/png').split(',')[1];
+    }
     return cv.toDataURL('image/png').split(',')[1];
   }
 
@@ -821,6 +906,15 @@ class SPHERExZooApp {
       }
     }
     ctx.putImageData(img, 0, 0);
+    if (npix < 256) {
+      const hi = document.createElement('canvas');
+      hi.width = 320; hi.height = 320;
+      const hctx = hi.getContext('2d');
+      hctx.imageSmoothingEnabled = true;
+      hctx.imageSmoothingQuality = 'high';
+      hctx.drawImage(cv, 0, 0, 320, 320);
+      return hi.toDataURL('image/png').split(',')[1];
+    }
     return cv.toDataURL('image/png').split(',')[1];
   }
 
@@ -835,7 +929,19 @@ class SPHERExZooApp {
       document.documentElement.setAttribute('data-theme', next);
       localStorage.setItem('spx_zoo_theme', next);
       this._updateThemeBtnLabel(next);
+      if (this.sedChart) this.sedChart.refreshTheme();
     });
+
+    // Vector SVG 102-Band Spectrum Export
+    const exportSedBtn = document.getElementById('btn-export-sed-svg');
+    if (exportSedBtn) {
+      exportSedBtn.addEventListener('click', () => {
+        if (this.sedChart) {
+          this.sedChart.exportSvg(this.state.target || 'SPHEREx_Target');
+          this._showToast('Downloaded lossless Vector SVG 102-Band Spectrum!');
+        }
+      });
+    }
 
     // Keyboard Shortcuts Help Modal
     document.getElementById('btn-shortcuts-modal').addEventListener('click', () => {

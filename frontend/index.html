@@ -9,8 +9,6 @@
   <!-- Official Zooniverse Karla UI font + Barlow Condensed Display + IBM Plex Mono Telemetry -->
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Karla:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
-  <!-- Chart.js for 102-Band LVF Spectrophotometry -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- CDS Aladin Lite v3 for Multi-Mission Sky Overlays (WISE, Gaia DR3, 2MASS) -->
   <script src="https://aladin.cds.unistra.fr/AladinLite/api/v3/latest/aladin.js" charset="utf-8"></script>
 </head>
@@ -668,26 +666,38 @@
         <!-- On-the-Fly 102-Band Spectrophotometry Module -->
         <div class="sed-module">
           <div class="sed-header">
-            <h2 data-tip-title="On-The-Fly 102-Band Spectrophotometer"
-                data-tip-body="SPHEREx splits 0.75–5.0 µm light into 102 channels across 6 detector arrays (A1–A6). Click any star in the cutout to extract its spectrum!">
+            <h2 data-tip-title="On-The-Fly 102-Band Vector Spectrophotometer"
+                data-tip-body="SPHEREx splits 0.75–5.0 µm light into 102 channels across 6 detector arrays (A1–A6). Rendered in resolution-independent vector SVG — hover over the curve to inspect individual channels!">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--zoo-teal-hover)" stroke-width="2.3">
                 <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
               </svg>
               102-Band NIR Spectrum
             </h2>
-            <span id="sed-classification-badge" class="sed-class-pill"
-                  data-tip-title="Automated Spectral Template Match"
-                  data-tip-body="Best-matching astrophysical source class inferred from continuum slope and molecular absorption troughs.">
-              Loading...
-            </span>
+            <div class="sed-header-actions">
+              <span id="sed-classification-badge" class="sed-class-pill"
+                    data-tip-title="Automated Spectral Template Match"
+                    data-tip-body="Best-matching astrophysical source class inferred from continuum slope and molecular absorption troughs.">
+                Loading...
+              </span>
+              <button type="button" id="btn-export-sed-svg" class="sed-export-btn"
+                      aria-label="Download Publication-Quality Vector SVG Spectrum"
+                      data-tip-title="Export Lossless Vector SVG"
+                      data-tip-body="Download this 102-band SPHEREx spectrum as a crisp, infinitely scalable vector SVG figure for research papers or Talk posts.">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                SVG
+              </button>
+            </div>
           </div>
 
           <div class="sed-subline">
             <span id="sed-aperture-coords">Click any source in viewer to extract aperture SED</span>
-            <span>0.75 – 5.00 µm</span>
+            <span class="sed-range-tag">0.75 – 5.00 µm • Vector HiDPI</span>
           </div>
 
-          <div class="sed-canvas-box">
+          <div id="sed-vector-stage" class="sed-canvas-box">
             <canvas id="sed-chart" aria-label="102-Band Spectral Energy Distribution"></canvas>
           </div>
 

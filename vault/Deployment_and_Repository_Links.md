@@ -27,3 +27,7 @@
    - Hovering over **every icon, toolbar button, epoch dot, wavelength pill, dropdown, and task choice** displays an instant instructional HUD tooltip with keyboard shortcuts and scientific explanations.
 3. **12-Tool Vertical Subject Manipulation Toolbar:**
    - Spectrum Pointer (`S`), Candidate Marker (`M`), Pan (`P`), Zoom In/Out/Reset (`+`, `-`, `0`), Negative Invert (`I`), 3-Band False-Color RGB (`R`), Epoch Subtraction Difference (`D` with selectable Epoch A & B pairs), SNR Coadd Stack (`C`), Histogram Brightness/Contrast Stretch (`B`), WCS Coordinate Grid (`G`), Gaia DR3 Proper Motion Vectors, and SPHEREx Level-2 Contamination Flags (`F`).
+4. **Vector SVG 102-Band Spectrophotometer & HiDPI Supersampled Cutouts:**
+   - Replaced raster `<canvas>` Chart.js SED plot with a **100% Vector SVG Interactive Spectrophotometer (`sed_chart.js`)** rendered at native infinite device resolution:
+     - True linear physical wavelength axis (`0.75 – 5.00 µm`), dedicated non-overlapping `A1`–`A6` detector array header strip (each with hover tooltip physics), `±1σ` photometric uncertainty envelope & error whiskers, staggered molecular absorption callouts (`CH₄`, `H₂O Ice`, `CO₂`, `CO`), channel-snapping laser crosshair readout, and one-click lossless `.svg` export.
+   - Upgraded `SkyBlinker` (`blinker.js`), `SPHERExEngine` (`spherex_engine.py`), and `DifferenceEngine` (`difference_engine.py`) to `2×–3×` Retina `devicePixelRatio` canvas buffers and `384×384` supersampled sub-pixel Moffat/Gaussian starfields with diffraction spikes.

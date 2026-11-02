@@ -233,14 +233,66 @@ class SPHERExEngine:
                     "note": "HgCdTe H2RG dark-current warm pixel calibrated out"
                 })
 
-            # Convert to display PNG (Base64)
+            # Render 384x384 supersampled sub-pixel display cutouts for crisp HiDPI visualization
+            hi_npix = 384
+            scale_hi = hi_npix / float(npix)
+            hy_grid, hx_grid = np.mgrid[0:hi_npix, 0:hi_npix].astype(np.float32)
+            # Map hi-res pixel centers back to native SPHEREx pixel coordinates
+            wx_grid = (hx_grid + 0.5) / scale_hi - 0.5
+            wy_grid = (hy_grid + 0.5) / scale_hi - 0.5
+
+            hi_img = np.full((hi_npix, hi_npix), zodi_level, dtype=np.float32)
+            hi_short = np.full((hi_npix, hi_npix), zodi_level * 0.7, dtype=np.float32)
+            hi_mid = np.full((hi_npix, hi_npix), zodi_level * 0.9, dtype=np.float32)
+            hi_long = np.full((hi_npix, hi_npix), zodi_level * 1.35, dtype=np.float32)
+
+            hi_sigma = 0.46  # Crisp sub-pixel optical/NIR PSF core in native pixel units
+            for bx, by, bf, bt in zip(bg_x, bg_y, bg_flux, bg_temp):
+                dx = wx_grid - bx
+                dy = wy_grid - by
+                r2 = dx * dx + dy * dy
+                # Core + faint Moffat halo for realistic astronomical star profiles
+                psf_hi = np.exp(-r2 / (2.0 * hi_sigma**2)) + 0.12 * np.exp(-r2 / (2.0 * (hi_sigma * 2.4)**2))
+                blue_w = np.clip(bt / 5800.0, 0.5, 1.5)
+                red_w = np.clip(4500.0 / bt, 0.45, 1.4)
+                band_scale = blue_w if array_selection in ["1", "2"] else (red_w if array_selection in ["5", "6"] else 1.0)
+                hi_img += (bf * band_scale) * psf_hi
+                hi_short += (bf * blue_w) * psf_hi
+                hi_mid += bf * psf_hi
+                hi_long += (bf * red_w) * psf_hi
+
+            tdx = wx_grid - current_target_x
+            tdy = wy_grid - current_target_y
+            tr2 = tdx * tdx + tdy * tdy
+            psf_t_hi = np.exp(-tr2 / (2.0 * hi_sigma**2)) + 0.16 * np.exp(-tr2 / (2.0 * (hi_sigma * 2.6)**2))
+            # Subtle 4-point telescope diffraction spikes on bright primary targets
+            if primary_flux > 18.0:
+                spike = np.exp(-np.abs(tdx) / 0.16) * np.exp(-np.abs(tdy) / 3.2) + np.exp(-np.abs(tdy) / 0.16) * np.exp(-np.abs(tdx) / 3.2)
+                psf_t_hi += 0.14 * spike
+
+            hi_img += primary_flux * psf_t_hi
+            hi_short += cls._get_target_band_flux(target_name, "1") * flux_multiplier * psf_t_hi
+            hi_mid += cls._get_target_band_flux(target_name, "3") * flux_multiplier * psf_t_hi
+            hi_long += cls._get_target_band_flux(target_name, "6") * flux_multiplier * psf_t_hi
+
+            hi_noise = rng.normal(0, 0.07, size=(hi_npix, hi_npix)).astype(np.float32)
+            hi_img = np.clip(hi_img + hi_noise, 0, None)
+            hi_short = np.clip(hi_short + hi_noise * 0.8, 0, None)
+            hi_mid = np.clip(hi_mid + hi_noise * 0.8, 0, None)
+            hi_long = np.clip(hi_long + hi_noise * 0.9, 0, None)
+
+            if ep["id"] == "epoch_2":
+                h_cx, h_cy = int((cr_x + 0.5) * scale_hi), int((cr_y + 0.5) * scale_hi)
+                hi_img[max(0, h_cy - 1):h_cy + 2, max(0, h_cx - 1):h_cx + 2] += 110.0
+                hi_short[max(0, h_cy - 1):h_cy + 2, max(0, h_cx - 1):h_cx + 2] += 110.0
+
+            # Convert to high-definition display PNG (Base64)
+            rgb_b64 = cls._channels_to_rgb_base64(hi_long, hi_mid, hi_short)
             if array_selection == "rgb":
-                rgb_b64 = cls._channels_to_rgb_base64(ch_long, ch_mid, ch_short)
                 img_b64 = rgb_b64
             else:
-                img_b64 = cls._array_to_png_base64(image_data)
-                rgb_b64 = cls._channels_to_rgb_base64(ch_long, ch_mid, ch_short)
-            inv_b64 = cls._array_to_png_base64(image_data, invert=True)
+                img_b64 = cls._array_to_png_base64(hi_img)
+            inv_b64 = cls._array_to_png_base64(hi_img, invert=True)
 
             epoch_frames.append({
                 "epoch_id": ep["id"],

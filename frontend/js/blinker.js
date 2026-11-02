@@ -1,12 +1,13 @@
 /**
- * Zooniverse Subject Viewer & SPHEREx Multi-Epoch Blinker Engine.
+ * Zooniverse Subject Viewer & HiDPI SPHEREx Multi-Epoch Blinker Engine.
  * Supports:
+ * - Retina / HiDPI devicePixelRatio (2x–3x) supersampled canvas backing buffers
  * - Multi-epoch blinking & stepping (Normal, Inverted, False-Color RGB, Difference, Coadd)
  * - Interactive Zoom (1x to 8x) & Drag Pan
  * - Brightness / Contrast / Stretch adjustment
  * - Interactive Citizen Science Candidate Markers (#1, #2...) + Spectrum Click Extraction
- * - Celestial WCS Grid, Gaia DR3 Proper Motion Vectors, & Level-2 Contamination Flags Overlays
- * - Synchronized 2-Up Split Compare Rendering
+ * - Crisp Vector WCS Grid, Gaia DR3 Proper Motion Vectors, & Level-2 Contamination Flags Overlays
+ * - Synchronized HiDPI 2-Up Split Compare Rendering
  */
 
 class SkyBlinker {
@@ -16,6 +17,10 @@ class SkyBlinker {
 
     this.splitCanvasA = options.splitCanvasA || null;
     this.splitCanvasB = options.splitCanvasB || null;
+
+    this.dpr = Math.max(window.devicePixelRatio || 1, 2);
+    this.logicalWidth = 560;
+    this.logicalHeight = 560;
 
     this.epochs = [];
     this.currentIndex = 0;
@@ -64,11 +69,58 @@ class SkyBlinker {
     this.onPixelClick = options.onPixelClick || null;
     this.onMarkersChange = options.onMarkersChange || null;
 
+    this._syncHiDpiSize();
+    this._setupResizeObserver();
     this._setupListeners();
+  }
+
+  _syncHiDpiSize() {
+    this.dpr = Math.max(window.devicePixelRatio || 1, 2);
+    const parent = this.canvas.parentElement;
+    const rect = parent ? parent.getBoundingClientRect() : this.canvas.getBoundingClientRect();
+    const side = Math.max(360, Math.round(Math.min(rect.width || 560, rect.height || 560)));
+
+    this.logicalWidth = side;
+    this.logicalHeight = side;
+
+    const targetW = Math.round(side * this.dpr);
+    const targetH = Math.round(side * this.dpr);
+    if (this.canvas.width !== targetW || this.canvas.height !== targetH) {
+      this.canvas.width = targetW;
+      this.canvas.height = targetH;
+    }
+
+    [this.splitCanvasA, this.splitCanvasB].forEach(cv => {
+      if (!cv) return;
+      const pRect = cv.parentElement ? cv.parentElement.getBoundingClientRect() : { width: 340, height: 340 };
+      const sSide = Math.max(280, Math.round(Math.min(pRect.width || 340, pRect.height || 340)));
+      const sw = Math.round(sSide * this.dpr);
+      const sh = Math.round(sSide * this.dpr);
+      if (cv.width !== sw || cv.height !== sh) {
+        cv.width = sw;
+        cv.height = sh;
+      }
+    });
+  }
+
+  _setupResizeObserver() {
+    if (typeof ResizeObserver === 'undefined') return;
+    let rafId = null;
+    this.resizeObserver = new ResizeObserver(() => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        this._syncHiDpiSize();
+        this.render();
+      });
+    });
+    if (this.canvas.parentElement) {
+      this.resizeObserver.observe(this.canvas.parentElement);
+    }
   }
 
   loadData(cubeData, diffData = null, coaddData = null, resetView = true) {
     this.stop();
+    this._syncHiDpiSize();
     this.cubeData = cubeData;
     this.epochs = cubeData.epochs || [];
     this.raCenter = cubeData.ra;
@@ -237,10 +289,10 @@ class SkyBlinker {
     this.render();
   }
 
-  /** Converts canvas (x, y) to data-grid pixel coordinates (0..npix) */
+  /** Converts logical canvas (x, y) to data-grid pixel coordinates (0..npix) */
   canvasToDataCoords(cx, cy) {
-    const w = this.canvas.width;
-    const h = this.canvas.height;
+    const w = this.logicalWidth;
+    const h = this.logicalHeight;
     const normX = ((cx - w / 2 - this.panX) / this.zoom + w / 2) / w;
     const normY = ((cy - h / 2 - this.panY) / this.zoom + h / 2) / h;
     return {
@@ -249,10 +301,10 @@ class SkyBlinker {
     };
   }
 
-  /** Converts data-grid pixel (0..npix) to canvas (x, y) */
+  /** Converts data-grid pixel (0..npix) to logical canvas (x, y) */
   dataToCanvasCoords(dataX, dataY) {
-    const w = this.canvas.width;
-    const h = this.canvas.height;
+    const w = this.logicalWidth;
+    const h = this.logicalHeight;
     const baseX = (dataX / this.npix) * w;
     const baseY = (dataY / this.npix) * h;
     return {
@@ -272,8 +324,11 @@ class SkyBlinker {
   }
 
   render() {
-    const w = this.canvas.width;
-    const h = this.canvas.height;
+    const w = this.logicalWidth;
+    const h = this.logicalHeight;
+
+    // Reset transform to HiDPI backing scale so all drawing uses crisp logical coordinates
+    this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     this.ctx.clearRect(0, 0, w, h);
 
     let activeImg = null;
@@ -299,7 +354,9 @@ class SkyBlinker {
     this.ctx.filter = `brightness(${this.brightness}%) contrast(${this.contrast}%)`;
     this.ctx.translate(w / 2 + this.panX, h / 2 + this.panY);
     this.ctx.scale(this.zoom, this.zoom);
-    this.ctx.imageSmoothingEnabled = false;
+    // High-definition bicubic smoothing at normal views; discrete pixel inspection at deep >4x zoom
+    this.ctx.imageSmoothingEnabled = this.zoom < 4.0;
+    this.ctx.imageSmoothingQuality = 'high';
     this.ctx.drawImage(activeImg, -w / 2, -h / 2, w, h);
     this.ctx.restore();
 
@@ -321,7 +378,7 @@ class SkyBlinker {
       this.ctx.save();
       this.ctx.strokeStyle = '#00e1ee';
       this.ctx.lineWidth = 1.6;
-      this.ctx.setLineDash([3, 3]);
+      this.ctx.setLineDash([3.5, 3]);
       this.ctx.beginPath();
       this.ctx.arc(pt.cx, pt.cy, 13, 0, Math.PI * 2);
       this.ctx.stroke();
@@ -333,7 +390,7 @@ class SkyBlinker {
       const pt = this.dataToCanvasCoords(m.dataX, m.dataY);
       this.ctx.save();
       this.ctx.strokeStyle = '#f0b200';
-      this.ctx.lineWidth = 2;
+      this.ctx.lineWidth = 1.9;
       this.ctx.beginPath();
       this.ctx.arc(pt.cx, pt.cy, 14, 0, Math.PI * 2);
       this.ctx.stroke();
@@ -347,7 +404,7 @@ class SkyBlinker {
       this.ctx.stroke();
 
       this.ctx.fillStyle = '#f0b200';
-      this.ctx.font = 'bold 11px "IBM Plex Mono", monospace';
+      this.ctx.font = '600 11px "IBM Plex Mono", monospace';
       this.ctx.fillText(`#${idx + 1}`, pt.cx + 14, pt.cy - 12);
       this.ctx.restore();
     });
@@ -369,7 +426,7 @@ class SkyBlinker {
 
     const divisions = 4;
     for (let i = 1; i < divisions; i++) {
-      const pos = (w / divisions) * i;
+      const pos = Math.round((w / divisions) * i) + 0.5;
       this.ctx.beginPath();
       this.ctx.moveTo(pos, 0); this.ctx.lineTo(pos, h);
       this.ctx.moveTo(0, pos); this.ctx.lineTo(w, pos);
@@ -378,8 +435,8 @@ class SkyBlinker {
 
     // Center nominal target reticle
     const center = this.dataToCanvasCoords(this.npix / 2, this.npix / 2);
-    this.ctx.strokeStyle = inverted ? 'rgba(210, 40, 45, 0.78)' : 'rgba(0, 195, 205, 0.78)';
-    this.ctx.lineWidth = 1.3;
+    this.ctx.strokeStyle = inverted ? 'rgba(210, 40, 45, 0.82)' : 'rgba(0, 210, 223, 0.82)';
+    this.ctx.lineWidth = 1.35;
     const r = 16;
     this.ctx.beginPath();
     this.ctx.arc(center.cx, center.cy, r, 0, Math.PI * 2);
@@ -395,14 +452,15 @@ class SkyBlinker {
     // Compass N / E indicator (Astronomical North up, East left)
     this.ctx.strokeStyle = inverted ? '#111' : '#f0b200';
     this.ctx.fillStyle = inverted ? '#111' : '#f0b200';
-    this.ctx.font = 'bold 10px "IBM Plex Mono", monospace';
+    this.ctx.lineWidth = 1.25;
+    this.ctx.font = '600 10.5px "IBM Plex Mono", monospace';
     const ox = w - 26, oy = h - 24;
     this.ctx.beginPath();
     this.ctx.moveTo(ox, oy); this.ctx.lineTo(ox, oy - 18);
     this.ctx.moveTo(ox, oy); this.ctx.lineTo(ox - 18, oy);
     this.ctx.stroke();
-    this.ctx.fillText('N', ox - 3, oy - 21);
-    this.ctx.fillText('E', ox - 27, oy + 3);
+    this.ctx.fillText('N', ox - 3.5, oy - 21);
+    this.ctx.fillText('E', ox - 27, oy + 3.5);
 
     this.ctx.restore();
   }
@@ -411,8 +469,8 @@ class SkyBlinker {
     this.ctx.save();
     this.cubeData.gaia_sources.forEach(src => {
       const pt = this.dataToCanvasCoords(src.x + 0.5, src.y + 0.5);
-      this.ctx.strokeStyle = 'rgba(46, 213, 115, 0.85)';
-      this.ctx.lineWidth = 1.2;
+      this.ctx.strokeStyle = 'rgba(46, 213, 115, 0.88)';
+      this.ctx.lineWidth = 1.25;
       this.ctx.strokeRect(pt.cx - 6, pt.cy - 6, 12, 12);
 
       // Proper motion arrow scaled for visibility
@@ -443,15 +501,15 @@ class SkyBlinker {
       this.ctx.stroke();
 
       this.ctx.fillStyle = '#ff7b7f';
-      this.ctx.font = 'bold 9px "IBM Plex Mono", monospace';
-      this.ctx.fillText(f.flag, pt.cx + 11, pt.cy + 3);
+      this.ctx.font = '600 9.5px "IBM Plex Mono", monospace';
+      this.ctx.fillText(f.flag, pt.cx + 12, pt.cy + 3);
     });
     this.ctx.restore();
   }
 
   _drawCursorCrosshair(w, h) {
     this.ctx.save();
-    this.ctx.strokeStyle = 'rgba(240, 178, 0, 0.42)';
+    this.ctx.strokeStyle = 'rgba(240, 178, 0, 0.45)';
     this.ctx.lineWidth = 0.9;
     this.ctx.setLineDash([4, 4]);
     this.ctx.beginPath();
@@ -472,13 +530,25 @@ class SkyBlinker {
       ? this.loadedImages.difference
       : (this.loadedImages.normal[1] || this.loadedImages.normal[0]);
 
-    [ [ctxA, this.splitCanvasA, imgA], [ctxB, this.splitCanvasB, imgB] ].forEach(([c, cv, im]) => {
+    [[ctxA, this.splitCanvasA, imgA], [ctxB, this.splitCanvasB, imgB]].forEach(([c, cv, im]) => {
+      c.setTransform(1, 0, 0, 1, 0, 0);
       c.clearRect(0, 0, cv.width, cv.height);
       if (im && im.complete && im.naturalWidth > 0) {
-        c.imageSmoothingEnabled = false;
+        c.imageSmoothingEnabled = true;
+        c.imageSmoothingQuality = 'high';
         c.drawImage(im, 0, 0, cv.width, cv.height);
       }
     });
+  }
+
+  _eventToLogicalPos(e) {
+    const rect = this.canvas.getBoundingClientRect();
+    const scaleX = this.logicalWidth / Math.max(1, rect.width);
+    const scaleY = this.logicalHeight / Math.max(1, rect.height);
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY
+    };
   }
 
   _setupListeners() {
@@ -498,11 +568,9 @@ class SkyBlinker {
     });
 
     this.canvas.addEventListener('mousemove', (e) => {
-      const rect = this.canvas.getBoundingClientRect();
-      const scaleX = this.canvas.width / rect.width;
-      const scaleY = this.canvas.height / rect.height;
-      this.mousePos.x = (e.clientX - rect.left) * scaleX;
-      this.mousePos.y = (e.clientY - rect.top) * scaleY;
+      const pos = this._eventToLogicalPos(e);
+      this.mousePos.x = pos.x;
+      this.mousePos.y = pos.y;
       this.mousePos.inCanvas = true;
 
       if (this.isDragging) {
@@ -549,9 +617,7 @@ class SkyBlinker {
 
     this.canvas.addEventListener('click', (e) => {
       if (this.activeTool === 'pan') return;
-      const rect = this.canvas.getBoundingClientRect();
-      const cx = (e.clientX - rect.left) * (this.canvas.width / rect.width);
-      const cy = (e.clientY - rect.top) * (this.canvas.height / rect.height);
+      const { x: cx, y: cy } = this._eventToLogicalPos(e);
       const { dataX, dataY } = this.canvasToDataCoords(cx, cy);
       const { ra, dec } = this.dataToWorldCoords(dataX, dataY);
 

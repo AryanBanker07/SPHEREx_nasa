@@ -81,7 +81,7 @@ class DifferenceEngine:
         stretched = np.arcsinh(10.0 * scaled) / np.arcsinh(10.0)
         uint8_data = (stretched * 255).astype(np.uint8)
 
-        img = Image.fromarray(uint8_data)
+        img = Image.fromarray(uint8_data).resize((384, 384), resample=Image.Resampling.BICUBIC)
         buffer = io.BytesIO()
         img.save(buffer, format="PNG")
         coadd_b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
@@ -209,7 +209,7 @@ class DifferenceEngine:
         rgb[neg_idx, 1] = np.clip(128 - n_val * 40, 0, 255).astype(np.uint8)
         rgb[neg_idx, 2] = np.clip(128 + n_val * 127, 0, 255).astype(np.uint8)
 
-        img = Image.fromarray(rgb, mode="RGB")
+        img = Image.fromarray(rgb, mode="RGB").resize((384, 384), resample=Image.Resampling.BICUBIC)
         buffer = io.BytesIO()
         img.save(buffer, format="PNG")
         return base64.b64encode(buffer.getvalue()).decode("utf-8")
